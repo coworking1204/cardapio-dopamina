@@ -44,13 +44,13 @@
   }
   </script>
   <link rel="preconnect" href="https://zpwquzllpdqrpmwniupn.supabase.co" crossorigin>
-  <link rel="modulepreload" href="assets/shared.js?v=202611022033">
-  <link rel="modulepreload" href="assets/config.js?v=202611022033">
+  <link rel="modulepreload" href="assets/shared.js?v=202611022037">
+  <link rel="modulepreload" href="assets/config.js?v=202611022037">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=202611022033">
-  <script type="module" src="assets/app.js?v=202611022033"></script>
+  <link rel="stylesheet" href="assets/styles.css?v=202611022037">
+  <script type="module" src="assets/app.js?v=202611022037"></script>
 </head>
 <body class="menu-page">
   <header class="masthead">
@@ -104,18 +104,54 @@
     <section class="cart-card">
       <header class="cart-head">
         <div>
-          <p class="cart-kicker">Seu pedido</p>
+          <p id="cart-kicker" class="cart-kicker">Seu pedido</p>
           <h2 id="cart-title">Carrinho</h2>
         </div>
         <button class="cart-close" type="button" data-cart-close aria-label="Fechar carrinho">×</button>
       </header>
-      <p id="cart-empty" class="cart-empty">Seu carrinho está vazio.</p>
-      <ul id="cart-items" class="cart-items"></ul>
-      <footer id="cart-footer" class="cart-footer" hidden>
-        <div class="cart-total-line"><span>Subtotal</span><strong id="cart-total"></strong></div>
-        <p class="cart-beta-note">Pagamento e retirada entram na próxima etapa da versão beta.</p>
-        <button id="cart-clear" class="cart-clear" type="button">Esvaziar carrinho</button>
-      </footer>
+      <div id="cart-view" class="cart-view">
+        <p id="cart-empty" class="cart-empty">Seu carrinho está vazio.</p>
+        <ul id="cart-items" class="cart-items"></ul>
+        <footer id="cart-footer" class="cart-footer" hidden>
+          <div class="cart-total-line"><span>Subtotal</span><strong id="cart-total"></strong></div>
+          <p class="cart-beta-note">Esta é uma simulação. Nenhuma cobrança será realizada.</p>
+          <div class="cart-footer-actions">
+            <button id="cart-clear" class="cart-clear" type="button">Esvaziar</button>
+            <button id="cart-continue" class="cart-continue" type="button">Continuar pedido</button>
+          </div>
+        </footer>
+      </div>
+
+      <form id="checkout-form" class="checkout-view" hidden novalidate>
+        <button id="checkout-back" class="checkout-back" type="button">← Voltar ao carrinho</button>
+        <p class="checkout-intro">Só precisamos desses dados para identificar a retirada.</p>
+        <label class="checkout-field">Seu nome
+          <input id="checkout-name" name="name" autocomplete="name" maxlength="80" placeholder="Como podemos te chamar?" required>
+        </label>
+        <label class="checkout-field">WhatsApp
+          <input id="checkout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="19" placeholder="(34) 99999-9999" required>
+        </label>
+        <p class="checkout-privacy">Nesta beta, esses dados ficam somente neste aparelho e não são enviados ao Dopamina.</p>
+        <p id="checkout-error" class="checkout-error" role="alert" hidden></p>
+        <div class="checkout-summary">
+          <span>Resumo</span>
+          <strong id="checkout-summary"></strong>
+        </div>
+        <button class="checkout-submit" type="submit">Criar pedido simulado</button>
+      </form>
+
+      <section id="order-success" class="order-success" hidden>
+        <div class="success-mark" aria-hidden="true">✓</div>
+        <p class="success-label">Pedido simulado criado</p>
+        <strong id="success-code" class="success-code"></strong>
+        <p id="success-customer" class="success-customer"></p>
+        <div class="success-summary">
+          <span id="success-items"></span>
+          <strong id="success-total"></strong>
+        </div>
+        <p class="success-warning">Nenhuma cobrança foi feita e este pedido não foi enviado ao bar.</p>
+        <button class="success-close" type="button" data-cart-close>Voltar ao cardápio</button>
+      </section>
     </section>
   </dialog>
 

@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
-} from './shared.js?v=202611022033';
+} from './shared.js?v=202611022037';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -28,6 +28,7 @@ let activePromoKey = '';
 /* ---------- Carrinho da versão beta (somente neste aparelho) ---------- */
 
 const CART_KEY = 'dopamina-beta-cart-v1';
+const BETA_ORDER_KEY = 'dopamina-beta-last-order-v1';
 let cart = loadCart();
 
 function loadCart() {
@@ -604,18 +605,110 @@ function renderCart() {
   document.getElementById('cart-total').textContent = formatPrice(cartTotal());
 }
 
+function setCartView(view) {
+  document.getElementById('cart-view').hidden = view !== 'cart';
+  document.getElementById('checkout-form').hidden = view !== 'checkout';
+  document.getElementById('order-success').hidden = view !== 'success';
+  const titles = {
+    cart: ['Seu pedido', 'Carrinho'],
+    checkout: ['Quase lá', 'Identificação'],
+    success: ['Simulação beta', 'Pedido criado'],
+  };
+  document.getElementById('cart-kicker').textContent = titles[view][0];
+  document.getElementById('cart-title').textContent = titles[view][1];
+}
+
+function localPhoneDigits(value) {
+  let digits = String(value).replace(/\D/g, '');
+  if (digits.startsWith('55') && digits.length > 11) digits = digits.slice(2);
+  return digits.slice(0, 11);
+}
+
+function formatWhatsapp(value) {
+  const digits = localPhoneDigits(value);
+  if (digits.length <= 2) return digits ? `(${digits}` : '';
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function showCheckout() {
+  if (!cart.length) return;
+  const quantity = cartQuantity();
+  document.getElementById('checkout-summary').textContent = `${quantity} ${quantity === 1 ? 'item' : 'itens'} · ${formatPrice(cartTotal())}`;
+  document.getElementById('checkout-error').hidden = true;
+  setCartView('checkout');
+  document.getElementById('checkout-name').focus();
+}
+
+function betaOrderCode() {
+  const source = crypto.randomUUID?.() || `${Date.now()}${Math.random()}`;
+  return `BETA-${source.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
+}
+
+function showOrderSuccess(order) {
+  document.getElementById('success-code').textContent = order.code;
+  document.getElementById('success-customer').textContent = `${order.customer.name} · ${order.customer.phone}`;
+  document.getElementById('success-items').textContent = `${order.quantity} ${order.quantity === 1 ? 'item' : 'itens'}`;
+  document.getElementById('success-total').textContent = formatPrice(order.total);
+  setCartView('success');
+}
+
 const cartDialog = document.getElementById('cart-dialog');
 document.getElementById('cart-bar').addEventListener('click', () => {
   renderCart();
+  setCartView('cart');
   cartDialog.showModal();
 });
 cartDialog.addEventListener('click', (event) => {
   if (event.target === cartDialog || event.target.closest('[data-cart-close]')) cartDialog.close();
 });
+cartDialog.addEventListener('close', () => setCartView('cart'));
 document.getElementById('cart-clear').addEventListener('click', () => {
   if (!confirm('Esvaziar todo o carrinho?')) return;
   cart = [];
   saveCart();
+});
+document.getElementById('cart-continue').addEventListener('click', showCheckout);
+document.getElementById('checkout-back').addEventListener('click', () => setCartView('cart'));
+document.getElementById('checkout-phone').addEventListener('input', (event) => {
+  event.target.value = formatWhatsapp(event.target.value);
+});
+document.getElementById('checkout-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const nameInput = document.getElementById('checkout-name');
+  const phoneInput = document.getElementById('checkout-phone');
+  const name = nameInput.value.trim().replace(/\s+/g, ' ');
+  const phoneDigits = localPhoneDigits(phoneInput.value);
+  const error = document.getElementById('checkout-error');
+  if (name.length < 2) {
+    error.textContent = 'Digite seu nome para identificar o pedido.';
+    error.hidden = false;
+    nameInput.focus();
+    return;
+  }
+  if (phoneDigits.length < 10) {
+    error.textContent = 'Digite um WhatsApp com DDD.';
+    error.hidden = false;
+    phoneInput.focus();
+    return;
+  }
+
+  const order = {
+    code: betaOrderCode(),
+    createdAt: new Date().toISOString(),
+    status: 'simulated',
+    customer: { name, phone: formatWhatsapp(phoneDigits) },
+    items: cart.map((row) => ({ ...row })),
+    quantity: cartQuantity(),
+    total: cartTotal(),
+  };
+  try {
+    localStorage.setItem(BETA_ORDER_KEY, JSON.stringify(order));
+  } catch {}
+  cart = [];
+  saveCart();
+  showOrderSuccess(order);
 });
 updateCartBar();
 
@@ -732,7 +825,7 @@ load().then(startLiveUpdates);
 // Tempo real: a biblioteca do Supabase só é baixada depois que o cardápio já está na tela.
 async function startLiveUpdates() {
   try {
-    const { supabase } = await import('./client.js?v=202611022033');
+    const { supabase } = await import('./client.js?v=202611022037');
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)
