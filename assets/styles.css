@@ -79,6 +79,34 @@ body {
   text-transform: uppercase;
 }
 
+.brand-letter {
+  position: relative;
+  display: inline-block;
+}
+
+.brand-o::after {
+  content: '';
+  position: absolute;
+  bottom: -0.15em;
+  left: 50%;
+  width: 0.58em;
+  height: 0.075em;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.brand-i::after {
+  content: '';
+  position: absolute;
+  top: 47%;
+  left: -0.05em;
+  width: calc(100% + 0.1em);
+  height: 0.07em;
+  background: var(--plum);
+  transform: translateY(-50%);
+}
+
 .tagline {
   margin: 10px 0 0;
   color: var(--lilac);
@@ -626,6 +654,7 @@ body {
 
 .colophon p {
   margin: 0 0 6px;
+  text-align: center;
 }
 
 .photo-sheet {
