@@ -49,8 +49,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=202611022037">
-  <script type="module" src="assets/app.js?v=202611022037"></script>
+  <link rel="stylesheet" href="assets/styles.css?v=202611022120">
+  <script type="module" src="assets/app.js?v=202611022120"></script>
 </head>
 <body class="menu-page">
   <header class="masthead">
@@ -114,43 +114,41 @@
         <ul id="cart-items" class="cart-items"></ul>
         <footer id="cart-footer" class="cart-footer" hidden>
           <div class="cart-total-line"><span>Subtotal</span><strong id="cart-total"></strong></div>
-          <p class="cart-beta-note">Esta é uma simulação. Nenhuma cobrança será realizada.</p>
+          <p class="cart-beta-note">Teste · sem cobrança</p>
           <div class="cart-footer-actions">
-            <button id="cart-clear" class="cart-clear" type="button">Esvaziar</button>
-            <button id="cart-continue" class="cart-continue" type="button">Continuar pedido</button>
+            <button id="cart-clear" class="cart-clear" type="button">Limpar</button>
+            <button id="cart-continue" class="cart-continue" type="button">Continuar</button>
           </div>
         </footer>
       </div>
 
       <form id="checkout-form" class="checkout-view" hidden novalidate>
-        <button id="checkout-back" class="checkout-back" type="button">← Voltar ao carrinho</button>
-        <p class="checkout-intro">Só precisamos desses dados para identificar a retirada.</p>
+        <button id="checkout-back" class="checkout-back" type="button">← Voltar</button>
         <label class="checkout-field">Seu nome
           <input id="checkout-name" name="name" autocomplete="name" maxlength="80" placeholder="Como podemos te chamar?" required>
         </label>
         <label class="checkout-field">WhatsApp
           <input id="checkout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="19" placeholder="(34) 99999-9999" required>
         </label>
-        <p class="checkout-privacy">Nesta beta, esses dados ficam somente neste aparelho e não são enviados ao Dopamina.</p>
+        <p class="checkout-privacy">Usado somente para identificar a retirada.</p>
         <p id="checkout-error" class="checkout-error" role="alert" hidden></p>
         <div class="checkout-summary">
           <span>Resumo</span>
           <strong id="checkout-summary"></strong>
         </div>
-        <button class="checkout-submit" type="submit">Criar pedido simulado</button>
+        <button id="checkout-submit" class="checkout-submit" type="submit">Gerar QR Code</button>
       </form>
 
       <section id="order-success" class="order-success" hidden>
-        <div class="success-mark" aria-hidden="true">✓</div>
-        <p class="success-label">Pedido simulado criado</p>
+        <p class="success-label">Apresente na retirada</p>
+        <canvas id="success-qr" class="success-qr" width="220" height="220" aria-label="QR Code do pedido"></canvas>
         <strong id="success-code" class="success-code"></strong>
-        <p id="success-customer" class="success-customer"></p>
         <div class="success-summary">
           <span id="success-items"></span>
           <strong id="success-total"></strong>
         </div>
-        <p class="success-warning">Nenhuma cobrança foi feita e este pedido não foi enviado ao bar.</p>
-        <button class="success-close" type="button" data-cart-close>Voltar ao cardápio</button>
+        <p class="success-warning">Pedido beta · nenhuma cobrança realizada</p>
+        <button class="success-close" type="button" data-cart-close>Fechar</button>
       </section>
     </section>
   </dialog>

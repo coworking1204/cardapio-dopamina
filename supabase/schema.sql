@@ -2,6 +2,7 @@
 -- Rode este arquivo inteiro no SQL Editor do Supabase (uma vez).
 
 create extension if not exists pgcrypto;
+create schema if not exists private;
 
 -- Configurações gerais (sempre uma única linha, id = 1)
 create table if not exists public.menu_settings (
@@ -62,15 +63,18 @@ create table if not exists public.menu_secret (
 );
 alter table public.menu_secret enable row level security;
 revoke all on public.menu_secret from anon, authenticated;
+drop policy if exists "menu_secret_no_direct_access" on public.menu_secret;
+create policy "menu_secret_no_direct_access" on public.menu_secret
+  for all to anon, authenticated using (false) with check (false);
 insert into public.menu_secret (id, key) values (1, encode(gen_random_bytes(18), 'hex')) on conflict (id) do nothing;
 
 -- A página de edição manda a chave no cabeçalho x-menu-key
-create or replace function public.has_menu_key()
+create or replace function private.has_menu_key()
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
     select 1 from public.menu_secret s
@@ -78,17 +82,33 @@ as $$
   );
 $$;
 
+create or replace function public.has_menu_key()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select private.has_menu_key(); $$;
+
 -- Pode editar quem tem a chave do link (ou um usuário em menu_admins)
-create or replace function public.is_menu_admin()
+create or replace function private.is_menu_admin()
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
-  select public.has_menu_key()
-    or exists (select 1 from public.menu_admins where user_id = auth.uid());
+  select private.has_menu_key()
+    or exists (select 1 from public.menu_admins where user_id = (select auth.uid()));
 $$;
+
+create or replace function public.is_menu_admin()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select private.is_menu_admin(); $$;
 
 -- Qualquer mudança em abas/itens "carimba" menu_settings.updated_at.
 -- A página pública escuta só essa linha e recarrega o cardápio,
@@ -153,7 +173,7 @@ create policy "settings_admin_update" on public.menu_settings
 
 drop policy if exists "admins_read_self" on public.menu_admins;
 create policy "admins_read_self" on public.menu_admins
-  for select to authenticated using (user_id = auth.uid());
+  for select to authenticated using (user_id = (select auth.uid()));
 
 drop policy if exists "categories_read" on public.menu_categories;
 create policy "categories_read" on public.menu_categories
@@ -190,6 +210,9 @@ grant insert, update, delete on public.menu_categories, public.menu_items to ano
 grant select on public.menu_admins to authenticated;
 grant execute on function public.is_menu_admin() to anon, authenticated;
 grant execute on function public.has_menu_key() to anon, authenticated;
+grant usage on schema private to anon, authenticated;
+grant execute on function private.is_menu_admin() to anon, authenticated;
+grant execute on function private.has_menu_key() to anon, authenticated;
 -- Funções de gatilho não devem ser chamáveis pela API
 revoke execute on function public.touch_menu() from public, anon, authenticated;
 revoke execute on function public.set_updated_at() from public, anon, authenticated;
@@ -285,6 +308,9 @@ create table if not exists public.menu_promotions (
   image_url text,
   created_at timestamptz not null default now()
 );
+
+create index if not exists menu_promotions_category_id_idx
+  on public.menu_promotions (category_id);
 
 alter table public.menu_promotions enable row level security;
 

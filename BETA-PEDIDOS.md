@@ -8,21 +8,22 @@ Esta branch (`codex/beta-pedidos`) é isolada do cardápio público.
 - Quantidade, remoção e subtotal.
 - Suporte aos dois tamanhos dos petiscos.
 - Preços e promoções continuam vindo do cardápio atual.
-- Nenhum pedido é gravado no banco e nenhum pagamento é criado.
+- Nenhum pagamento é criado.
 
 ## Segunda etapa
 
 - Identificação como convidado por nome e WhatsApp.
 - Validação e formatação do telefone.
 - Resumo antes da confirmação.
-- Número de pedido beta e tela de sucesso.
-- Simulação armazenada somente no aparelho, sem envio ao bar.
+- Número de pedido, QR Code e tela de retirada.
+- Pedido gravado no Supabase com token aleatório, validade de 12 horas e uso único.
+- Valores recalculados no banco com os preços oficiais do cardápio.
 
 ## Próximas etapas
 
-1. Pedido simulado no Supabase beta.
-2. QR Code de retirada e painel de validação.
+1. Liberar a chave de edição no celular usado pela retirada.
+2. Testar pedidos durante uma operação controlada.
 3. Mercado Pago em ambiente de teste.
-4. Revisão de segurança antes de qualquer pagamento real.
+4. Leitor de QR pela câmera dentro da tela da equipe.
 
 Não envie esta branch para `main` ou `gh-pages` antes da aprovação da beta.

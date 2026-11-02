@@ -522,10 +522,10 @@ function orderOptions(item, section) {
   return h('div', { class: `order-options${variants.length > 1 ? ' has-variants' : ''}` },
     variants.map((variant) => h('button', {
       type: 'button',
-      class: 'order-add',
+      class: `order-add${variants.length === 1 ? ' is-single' : ''}`,
       'aria-label': `Adicionar ${item.name}${variants.length > 1 ? `, ${variant.label}` : ''} ao pedido`,
       onclick: () => addToCart(item, section, variant.key, variant.label),
-    }, variants.length > 1 ? `+ ${variant.label}` : '+ Adicionar')),
+    }, variants.length > 1 ? `+ ${variant.label}` : '+')),
   );
 }
 
@@ -611,8 +611,8 @@ function setCartView(view) {
   document.getElementById('order-success').hidden = view !== 'success';
   const titles = {
     cart: ['Seu pedido', 'Carrinho'],
-    checkout: ['Quase lá', 'Identificação'],
-    success: ['Simulação beta', 'Pedido criado'],
+    checkout: ['Pedido', 'Identificação'],
+    success: ['Retirada', 'QR Code'],
   };
   document.getElementById('cart-kicker').textContent = titles[view][0];
   document.getElementById('cart-title').textContent = titles[view][1];
@@ -641,17 +641,31 @@ function showCheckout() {
   document.getElementById('checkout-name').focus();
 }
 
-function betaOrderCode() {
-  const source = crypto.randomUUID?.() || `${Date.now()}${Math.random()}`;
-  return `BETA-${source.replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
-}
-
 function showOrderSuccess(order) {
   document.getElementById('success-code').textContent = order.code;
-  document.getElementById('success-customer').textContent = `${order.customer.name} · ${order.customer.phone}`;
   document.getElementById('success-items').textContent = `${order.quantity} ${order.quantity === 1 ? 'item' : 'itens'}`;
   document.getElementById('success-total').textContent = formatPrice(order.total);
   setCartView('success');
+  renderOrderQr(order).catch(() => {
+    document.getElementById('success-qr').hidden = true;
+  });
+}
+
+async function renderOrderQr(order) {
+  const canvas = document.getElementById('success-qr');
+  canvas.hidden = false;
+  const pickupUrl = new URL('retirada.html', location.href);
+  pickupUrl.search = '';
+  pickupUrl.hash = '';
+  pickupUrl.searchParams.set('t', order.token);
+  canvas.dataset.url = pickupUrl.href;
+  const { default: QRCode } = await import('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm');
+  await QRCode.toCanvas(canvas, pickupUrl.href, {
+    width: 220,
+    margin: 1,
+    color: { dark: '#080809', light: '#ffffff' },
+    errorCorrectionLevel: 'M',
+  });
 }
 
 const cartDialog = document.getElementById('cart-dialog');
@@ -674,10 +688,11 @@ document.getElementById('checkout-back').addEventListener('click', () => setCart
 document.getElementById('checkout-phone').addEventListener('input', (event) => {
   event.target.value = formatWhatsapp(event.target.value);
 });
-document.getElementById('checkout-form').addEventListener('submit', (event) => {
+document.getElementById('checkout-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const nameInput = document.getElementById('checkout-name');
   const phoneInput = document.getElementById('checkout-phone');
+  const submit = document.getElementById('checkout-submit');
   const name = nameInput.value.trim().replace(/\s+/g, ' ');
   const phoneDigits = localPhoneDigits(phoneInput.value);
   const error = document.getElementById('checkout-error');
@@ -694,21 +709,38 @@ document.getElementById('checkout-form').addEventListener('submit', (event) => {
     return;
   }
 
-  const order = {
-    code: betaOrderCode(),
-    createdAt: new Date().toISOString(),
-    status: 'simulated',
-    customer: { name, phone: formatWhatsapp(phoneDigits) },
-    items: cart.map((row) => ({ ...row })),
-    quantity: cartQuantity(),
-    total: cartTotal(),
-  };
+  submit.disabled = true;
+  submit.textContent = 'Gerando…';
+  error.hidden = true;
+
   try {
+    const { supabase } = await import('./client.js?v=202611022120');
+    const { data, error: requestError } = await supabase.rpc('create_guest_order', {
+      p_customer_name: name,
+      p_customer_phone: phoneDigits,
+      p_items: cart.map((row) => ({
+        item_id: row.itemId,
+        variant: row.variant,
+        quantity: row.quantity,
+      })),
+    });
+    if (requestError || !data?.token) throw requestError || new Error('Pedido sem identificação');
+
+    const order = {
+      ...data,
+      customer: { name, phone: formatWhatsapp(phoneDigits) },
+    };
     localStorage.setItem(BETA_ORDER_KEY, JSON.stringify(order));
-  } catch {}
-  cart = [];
-  saveCart();
-  showOrderSuccess(order);
+    cart = [];
+    saveCart();
+    showOrderSuccess(order);
+  } catch {
+    error.textContent = 'Não foi possível gerar o pedido. Tente novamente.';
+    error.hidden = false;
+  } finally {
+    submit.disabled = false;
+    submit.textContent = 'Gerar QR Code';
+  }
 });
 updateCartBar();
 
@@ -825,7 +857,7 @@ load().then(startLiveUpdates);
 // Tempo real: a biblioteca do Supabase só é baixada depois que o cardápio já está na tela.
 async function startLiveUpdates() {
   try {
-    const { supabase } = await import('./client.js?v=202611022037');
+    const { supabase } = await import('./client.js?v=202611022120');
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)
