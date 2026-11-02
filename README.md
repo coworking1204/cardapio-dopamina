@@ -41,4 +41,4 @@ Zona DNS no Registro.br apontando para o GitHub Pages:
 | A | (vazio) | 185.199.109.153 |
 | A | (vazio) | 185.199.110.153 |
 | A | (vazio) | 185.199.111.153 |
-| CNAME | www | dopaminadopinha.github.io |
+| CNAME | www | coworking1204.github.io |
