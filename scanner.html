@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080809">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Scanner · Dopamina</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css?v=202611022315">
+  <script type="module" src="assets/scanner.js?v=202611022315"></script>
+</head>
+<body class="scanner-page admin-page">
+  <main class="scanner-shell">
+    <header class="scanner-head">
+      <span>Retirada</span>
+      <strong>DOPAMINA</strong>
+    </header>
+
+    <section id="scanner-locked" class="scanner-locked" hidden>
+      <strong>Acesso privado</strong>
+      <p>Abra pelo link da equipe.</p>
+    </section>
+
+    <div id="scanner-content" hidden>
+      <section class="scanner-camera-card">
+        <div id="camera-stage" class="camera-stage" hidden>
+          <video id="camera-video" playsinline muted></video>
+          <div class="camera-frame" aria-hidden="true"></div>
+        </div>
+        <button id="camera-toggle" class="camera-toggle" type="button">Abrir câmera</button>
+        <p id="camera-status" class="camera-status" role="status">Leia o QR Code do cliente</p>
+      </section>
+
+      <section id="scanner-result" class="scanner-result" aria-live="polite" hidden></section>
+
+      <section class="pending-section">
+        <div class="pending-head">
+          <h1>Pendentes</h1>
+          <button id="pending-refresh" type="button" aria-label="Atualizar pedidos">↻</button>
+        </div>
+        <div id="pending-list" class="pending-list"><p class="pending-empty">Carregando…</p></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

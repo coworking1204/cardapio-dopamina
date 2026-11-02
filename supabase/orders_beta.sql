@@ -311,6 +311,131 @@ begin
 end;
 $$;
 
+create or replace function private.list_open_orders(p_limit integer default 30)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.has_menu_key() then
+    raise exception 'Acesso não autorizado';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'code', q.code,
+      'customer_name', q.customer_name,
+      'quantity', q.item_count,
+      'total', q.total,
+      'created_at', q.created_at,
+      'expires_at', q.expires_at
+    ) order by q.created_at desc)
+    from (
+      select o.code, o.customer_name, o.item_count, o.total, o.created_at, o.expires_at
+      from public.orders o
+      where o.status = 'created'
+        and o.expires_at > now()
+      order by o.created_at desc
+      limit least(greatest(coalesce(p_limit, 30), 1), 100)
+    ) q
+  ), '[]'::jsonb);
+end;
+$$;
+
+create or replace function private.get_staff_order(p_code text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_result jsonb;
+begin
+  if not public.has_menu_key() then
+    raise exception 'Acesso não autorizado';
+  end if;
+
+  select jsonb_build_object(
+    'code', o.code,
+    'status', case when o.status = 'created' and o.expires_at <= now() then 'expired' else o.status end,
+    'payment_status', o.payment_status,
+    'customer_name', o.customer_name,
+    'customer_phone', o.customer_phone,
+    'quantity', o.item_count,
+    'total', o.total,
+    'created_at', o.created_at,
+    'expires_at', o.expires_at,
+    'redeemed_at', o.redeemed_at,
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'name', i.item_name,
+        'detail', i.item_detail,
+        'variant', i.variant_label,
+        'quantity', i.quantity,
+        'unit_price', i.unit_price,
+        'line_total', i.line_total
+      ) order by i.id)
+      from public.order_items i
+      where i.order_id = o.id
+    ), '[]'::jsonb)
+  ) into v_result
+  from public.orders o
+  where upper(o.code) = upper(trim(coalesce(p_code, '')))
+  limit 1;
+
+  return v_result;
+end;
+$$;
+
+create or replace function private.redeem_guest_order_by_code(p_code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if not public.has_menu_key() then
+    raise exception 'Acesso não autorizado';
+  end if;
+
+  update public.orders
+  set status = 'redeemed', redeemed_at = now()
+  where upper(code) = upper(trim(coalesce(p_code, '')))
+    and status = 'created'
+    and expires_at > now()
+  returning * into v_order;
+
+  if found then
+    return jsonb_build_object(
+      'ok', true,
+      'code', v_order.code,
+      'status', v_order.status,
+      'redeemed_at', v_order.redeemed_at
+    );
+  end if;
+
+  select * into v_order
+  from public.orders
+  where upper(code) = upper(trim(coalesce(p_code, '')))
+  limit 1;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_found');
+  elsif v_order.status = 'redeemed' then
+    return jsonb_build_object('ok', false, 'reason', 'already_redeemed', 'code', v_order.code, 'redeemed_at', v_order.redeemed_at);
+  elsif v_order.expires_at <= now() then
+    return jsonb_build_object('ok', false, 'reason', 'expired', 'code', v_order.code);
+  else
+    return jsonb_build_object('ok', false, 'reason', v_order.status, 'code', v_order.code);
+  end if;
+end;
+$$;
+
 -- Wrappers do Data API: sem privilégios elevados; toda a lógica privilegiada fica fora do schema exposto.
 create or replace function public.create_guest_order(
   p_customer_name text,
@@ -338,21 +463,56 @@ security invoker
 set search_path = ''
 as $$ select private.redeem_guest_order(p_token); $$;
 
+create or replace function public.list_open_orders(p_limit integer default 30)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select private.list_open_orders(p_limit); $$;
+
+create or replace function public.get_staff_order(p_code text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select private.get_staff_order(p_code); $$;
+
+create or replace function public.redeem_guest_order_by_code(p_code text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select private.redeem_guest_order_by_code(p_code); $$;
+
 revoke all on function private.menu_item_price(uuid, text) from public;
 revoke all on function private.create_guest_order(text, text, jsonb) from public;
 revoke all on function private.get_guest_order(text) from public;
 revoke all on function private.redeem_guest_order(text) from public;
+revoke all on function private.list_open_orders(integer) from public;
+revoke all on function private.get_staff_order(text) from public;
+revoke all on function private.redeem_guest_order_by_code(text) from public;
 revoke all on function public.create_guest_order(text, text, jsonb) from public;
 revoke all on function public.get_guest_order(text) from public;
 revoke all on function public.redeem_guest_order(text) from public;
+revoke all on function public.list_open_orders(integer) from public;
+revoke all on function public.get_staff_order(text) from public;
+revoke all on function public.redeem_guest_order_by_code(text) from public;
 
 grant usage on schema private to anon, authenticated;
 grant execute on function private.create_guest_order(text, text, jsonb) to anon, authenticated;
 grant execute on function private.get_guest_order(text) to anon, authenticated;
 grant execute on function private.redeem_guest_order(text) to anon, authenticated;
+grant execute on function private.list_open_orders(integer) to anon, authenticated;
+grant execute on function private.get_staff_order(text) to anon, authenticated;
+grant execute on function private.redeem_guest_order_by_code(text) to anon, authenticated;
 grant execute on function public.create_guest_order(text, text, jsonb) to anon, authenticated;
 grant execute on function public.get_guest_order(text) to anon, authenticated;
 grant execute on function public.redeem_guest_order(text) to anon, authenticated;
+grant execute on function public.list_open_orders(integer) to anon, authenticated;
+grant execute on function public.get_staff_order(text) to anon, authenticated;
+grant execute on function public.redeem_guest_order_by_code(text) to anon, authenticated;
 
 -- Função interna de cálculo: só as rotinas privilegiadas precisam chamá-la.
 revoke all on function private.menu_item_price(uuid, text) from anon, authenticated;

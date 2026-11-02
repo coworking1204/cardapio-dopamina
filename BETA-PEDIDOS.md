@@ -19,11 +19,17 @@ Esta branch (`codex/beta-pedidos`) é isolada do cardápio público.
 - Pedido gravado no Supabase com token aleatório, validade de 12 horas e uso único.
 - Valores recalculados no banco com os preços oficiais do cardápio.
 
+## Terceira etapa
+
+- Tela privada `scanner.html`, protegida pela mesma chave do editor.
+- Leitura do QR Code pela câmera traseira, com alternativa compatível para iPhone.
+- Conferência dos itens e entrega de uso único.
+- Lista compacta dos pedidos ainda pendentes.
+
 ## Próximas etapas
 
-1. Liberar a chave de edição no celular usado pela retirada.
+1. Abrir o link privado no celular usado pela retirada.
 2. Testar pedidos durante uma operação controlada.
 3. Mercado Pago em ambiente de teste.
-4. Leitor de QR pela câmera dentro da tela da equipe.
 
 Não envie esta branch para `main` ou `gh-pages` antes da aprovação da beta.
