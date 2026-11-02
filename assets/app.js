@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
-} from './shared.js?v=202611021747';
+} from './shared.js?v=202611022033';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -25,6 +25,74 @@ let lastJson = '';
 let currentMenu = null;
 let activePromoKey = '';
 
+/* ---------- Carrinho da versão beta (somente neste aparelho) ---------- */
+
+const CART_KEY = 'dopamina-beta-cart-v1';
+let cart = loadCart();
+
+function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+    if (!Array.isArray(saved)) return [];
+    return saved
+      .filter((row) =>
+        row
+        && typeof row.key === 'string'
+        && typeof row.itemId === 'string'
+        && Number(row.quantity) > 0
+        && Number.isFinite(Number(row.price)))
+      .map((row) => ({
+        ...row,
+        price: Number(row.price),
+        quantity: Math.min(99, Math.floor(Number(row.quantity))),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function saveCart() {
+  try {
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  } catch {}
+  updateCartBar();
+  if (document.getElementById('cart-dialog')?.open) renderCart();
+}
+
+function effectivePrice(item, variant = 'price') {
+  if (variant === 'price2') return Number(item.price2);
+  const promo = item.promo_price !== null && Number(item.promo_price) < Number(item.price);
+  return Number(promo ? item.promo_price : item.price);
+}
+
+function shortVariant(label, fallback) {
+  return (label || fallback).replace(/\s*\(.+\)\s*$/, '').trim();
+}
+
+function reconcileCart() {
+  const available = new Map();
+  for (const section of sections) {
+    for (const item of section.items) available.set(item.id, { item, section });
+  }
+  cart = cart.flatMap((row) => {
+    const current = available.get(row.itemId);
+    if (!current?.item.available) return [];
+    if (row.variant === 'price2' && current.item.price2 === null) return [];
+    const label = row.variant === 'price2'
+      ? shortVariant(current.section.price2_label, 'Opção 2')
+      : shortVariant(current.section.price_label, 'Unidade');
+    return [{
+      ...row,
+      name: current.item.name,
+      detail: current.item.detail,
+      variantLabel: current.section.price2_label ? label : '',
+      price: effectivePrice(current.item, row.variant),
+      image: current.item.thumb_url || current.item.image_url || '',
+    }];
+  });
+  saveCart();
+}
+
 function show(menu) {
   currentMenu = menu;
   const { settings, categories, items } = menu;
@@ -40,6 +108,7 @@ function show(menu) {
       items: items.filter((i) => i.category_id === c.id && i.visible).map((i) => withPromotions(i, running)),
     }))
     .filter((c) => c.items.length > 0);
+  reconcileCart();
   renderHeader(settings);
   renderTabs();
   renderPanel(firstLoad);
@@ -407,6 +476,7 @@ function renderPlainItem(item, section) {
         : null,
     ),
     item.description ? h('p', { class: 'item-desc' }, item.description) : null,
+    orderOptions(item, section),
   );
 }
 
@@ -438,8 +508,116 @@ function renderPhotoItem(item, section) {
       ),
       h('img', { class: 'item-photo', src: item.thumb_url || item.image_url, alt: '', loading: 'lazy', decoding: 'async' }),
     ),
+    orderOptions(item, section),
   );
 }
+
+function orderOptions(item, section) {
+  if (!item.available) return null;
+  const variants = [{ key: 'price', label: shortVariant(section.price_label, 'Unidade') }];
+  if (section.price2_label && item.price2 !== null) {
+    variants.push({ key: 'price2', label: shortVariant(section.price2_label, 'Opção 2') });
+  }
+  return h('div', { class: `order-options${variants.length > 1 ? ' has-variants' : ''}` },
+    variants.map((variant) => h('button', {
+      type: 'button',
+      class: 'order-add',
+      'aria-label': `Adicionar ${item.name}${variants.length > 1 ? `, ${variant.label}` : ''} ao pedido`,
+      onclick: () => addToCart(item, section, variant.key, variant.label),
+    }, variants.length > 1 ? `+ ${variant.label}` : '+ Adicionar')),
+  );
+}
+
+function addToCart(item, section, variant, variantLabel) {
+  const key = `${item.id}:${variant}`;
+  const existing = cart.find((row) => row.key === key);
+  if (existing) {
+    existing.quantity = Math.min(99, existing.quantity + 1);
+    existing.price = effectivePrice(item, variant);
+  } else {
+    cart.push({
+      key,
+      itemId: item.id,
+      variant,
+      name: item.name,
+      detail: item.detail,
+      variantLabel: section.price2_label ? variantLabel : '',
+      price: effectivePrice(item, variant),
+      quantity: 1,
+      image: item.thumb_url || item.image_url || '',
+    });
+  }
+  saveCart();
+  const bar = document.getElementById('cart-bar');
+  bar.classList.remove('is-pulsing');
+  void bar.offsetWidth;
+  bar.classList.add('is-pulsing');
+}
+
+function cartQuantity() {
+  return cart.reduce((sum, row) => sum + row.quantity, 0);
+}
+
+function cartTotal() {
+  return cart.reduce((sum, row) => sum + row.price * row.quantity, 0);
+}
+
+function updateCartBar() {
+  const bar = document.getElementById('cart-bar');
+  if (!bar) return;
+  const quantity = cartQuantity();
+  bar.hidden = quantity === 0;
+  document.body.classList.toggle('has-cart', quantity > 0);
+  document.getElementById('cart-count').textContent = `${quantity} ${quantity === 1 ? 'item' : 'itens'}`;
+  document.getElementById('cart-bar-total').textContent = formatPrice(cartTotal());
+}
+
+function changeCartQuantity(key, delta) {
+  const row = cart.find((item) => item.key === key);
+  if (!row) return;
+  row.quantity += delta;
+  if (row.quantity <= 0) cart = cart.filter((item) => item.key !== key);
+  else row.quantity = Math.min(99, row.quantity);
+  saveCart();
+}
+
+function renderCart() {
+  const list = document.getElementById('cart-items');
+  const empty = document.getElementById('cart-empty');
+  const footer = document.getElementById('cart-footer');
+  empty.hidden = cart.length > 0;
+  footer.hidden = cart.length === 0;
+  list.replaceChildren(...cart.map((row) => h('li', { class: 'cart-item' },
+    row.image ? h('img', { class: 'cart-thumb', src: row.image, alt: '', loading: 'lazy' }) : null,
+    h('div', { class: 'cart-item-body' },
+      h('strong', { class: 'cart-item-name' }, row.name),
+      row.detail ? h('span', { class: 'cart-item-detail' }, row.detail) : null,
+      row.variantLabel ? h('span', { class: 'cart-item-variant' }, row.variantLabel) : null,
+      h('span', { class: 'cart-item-price' }, formatPrice(row.price * row.quantity)),
+    ),
+    h('div', { class: 'cart-stepper', 'aria-label': `Quantidade de ${row.name}` },
+      h('button', { type: 'button', 'aria-label': `Diminuir ${row.name}`, onclick: () => changeCartQuantity(row.key, -1) }, '−'),
+      h('span', { 'aria-live': 'polite' }, row.quantity),
+      h('button', { type: 'button', 'aria-label': `Aumentar ${row.name}`, onclick: () => changeCartQuantity(row.key, 1) }, '+'),
+    ),
+  )));
+  document.getElementById('cart-total').textContent = formatPrice(cartTotal());
+}
+
+const cartDialog = document.getElementById('cart-dialog');
+document.getElementById('cart-bar').addEventListener('click', () => {
+  renderCart();
+  cartDialog.showModal();
+});
+cartDialog.addEventListener('click', (event) => {
+  if (event.target === cartDialog || event.target.closest('[data-cart-close]')) cartDialog.close();
+});
+document.getElementById('cart-clear').addEventListener('click', () => {
+  if (!confirm('Esvaziar todo o carrinho?')) return;
+  cart = [];
+  saveCart();
+});
+updateCartBar();
 
 /* ---------- Foto do item (desliza para ver as outras fotos da aba) ---------- */
 
@@ -554,7 +732,7 @@ load().then(startLiveUpdates);
 // Tempo real: a biblioteca do Supabase só é baixada depois que o cardápio já está na tela.
 async function startLiveUpdates() {
   try {
-    const { supabase } = await import('./client.js?v=202611021747');
+    const { supabase } = await import('./client.js?v=202611022033');
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)

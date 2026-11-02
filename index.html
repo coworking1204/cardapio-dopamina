@@ -44,17 +44,17 @@
   }
   </script>
   <link rel="preconnect" href="https://zpwquzllpdqrpmwniupn.supabase.co" crossorigin>
-  <link rel="modulepreload" href="assets/shared.js?v=202611021747">
-  <link rel="modulepreload" href="assets/config.js?v=202611021747">
+  <link rel="modulepreload" href="assets/shared.js?v=202611022033">
+  <link rel="modulepreload" href="assets/config.js?v=202611022033">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=202611021747">
-  <script type="module" src="assets/app.js?v=202611021747"></script>
+  <link rel="stylesheet" href="assets/styles.css?v=202611022033">
+  <script type="module" src="assets/app.js?v=202611022033"></script>
 </head>
 <body class="menu-page">
   <header class="masthead">
-    <p class="eyebrow">Cardápio</p>
+    <p class="eyebrow">Cardápio <span class="beta-chip">Beta pedidos</span></p>
     <h1 id="bar-name">DOPAMINA</h1>
     <p id="tagline" class="tagline" hidden></p>
   </header>
@@ -90,6 +90,33 @@
         <button class="photo-close" type="button" data-close>Fechar</button>
       </figcaption>
     </figure>
+  </dialog>
+
+  <button id="cart-bar" class="cart-bar" type="button" hidden aria-haspopup="dialog" aria-controls="cart-dialog">
+    <span class="cart-bar-copy">
+      <span>Ver pedido</span>
+      <small id="cart-count"></small>
+    </span>
+    <strong id="cart-bar-total"></strong>
+  </button>
+
+  <dialog id="cart-dialog" class="cart-sheet" aria-labelledby="cart-title">
+    <section class="cart-card">
+      <header class="cart-head">
+        <div>
+          <p class="cart-kicker">Seu pedido</p>
+          <h2 id="cart-title">Carrinho</h2>
+        </div>
+        <button class="cart-close" type="button" data-cart-close aria-label="Fechar carrinho">×</button>
+      </header>
+      <p id="cart-empty" class="cart-empty">Seu carrinho está vazio.</p>
+      <ul id="cart-items" class="cart-items"></ul>
+      <footer id="cart-footer" class="cart-footer" hidden>
+        <div class="cart-total-line"><span>Subtotal</span><strong id="cart-total"></strong></div>
+        <p class="cart-beta-note">Pagamento e retirada entram na próxima etapa da versão beta.</p>
+        <button id="cart-clear" class="cart-clear" type="button">Esvaziar carrinho</button>
+      </footer>
+    </section>
   </dialog>
 
   <footer class="colophon">
