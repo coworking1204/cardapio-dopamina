@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611021409';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611021720';
 
 // Chave de edição: vem do link secreto (admin.html#chave=...) e fica guardada neste aparelho.
 // Só a página de edição usa; o cardápio público nunca envia a chave.
