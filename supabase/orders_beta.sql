@@ -272,7 +272,7 @@ as $$
 declare
   v_order public.orders%rowtype;
 begin
-  if not public.has_menu_key() then
+  if not public.has_staff_key() then
     raise exception 'Acesso não autorizado';
   end if;
 
@@ -319,7 +319,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not public.has_menu_key() then
+  if not public.has_staff_key() then
     raise exception 'Acesso não autorizado';
   end if;
 
@@ -354,7 +354,7 @@ as $$
 declare
   v_result jsonb;
 begin
-  if not public.has_menu_key() then
+  if not public.has_staff_key() then
     raise exception 'Acesso não autorizado';
   end if;
 
@@ -399,7 +399,7 @@ as $$
 declare
   v_order public.orders%rowtype;
 begin
-  if not public.has_menu_key() then
+  if not public.has_staff_key() then
     raise exception 'Acesso não autorizado';
   end if;
 

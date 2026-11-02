@@ -90,6 +90,37 @@ security invoker
 set search_path = ''
 as $$ select private.has_menu_key(); $$;
 
+-- Chave independente para a equipe de retirada. Ela não permite editar o cardápio.
+create table if not exists private.staff_secret (
+  id int primary key default 1 check (id = 1),
+  key text not null
+);
+revoke all on private.staff_secret from public, anon, authenticated;
+insert into private.staff_secret (id, key)
+values (1, encode(extensions.gen_random_bytes(18), 'hex'))
+on conflict (id) do nothing;
+
+create or replace function private.has_staff_key()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select private.has_menu_key() or exists (
+    select 1 from private.staff_secret s
+    where s.key = (nullif(current_setting('request.headers', true), '')::json ->> 'x-scanner-key')
+  );
+$$;
+
+create or replace function public.has_staff_key()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select private.has_staff_key(); $$;
+
 -- Pode editar quem tem a chave do link (ou um usuário em menu_admins)
 create or replace function private.is_menu_admin()
 returns boolean
@@ -210,9 +241,11 @@ grant insert, update, delete on public.menu_categories, public.menu_items to ano
 grant select on public.menu_admins to authenticated;
 grant execute on function public.is_menu_admin() to anon, authenticated;
 grant execute on function public.has_menu_key() to anon, authenticated;
+grant execute on function public.has_staff_key() to anon, authenticated;
 grant usage on schema private to anon, authenticated;
 grant execute on function private.is_menu_admin() to anon, authenticated;
 grant execute on function private.has_menu_key() to anon, authenticated;
+grant execute on function private.has_staff_key() to anon, authenticated;
 -- Funções de gatilho não devem ser chamáveis pela API
 revoke execute on function public.touch_menu() from public, anon, authenticated;
 revoke execute on function public.set_updated_at() from public, anon, authenticated;

@@ -1,5 +1,5 @@
 import jsQR from 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/+esm';
-import { supabase, editKey } from './client.js?v=202611022315';
+import { supabase, editKey } from './client.js?v=202611022350';
 
 const locked = document.getElementById('scanner-locked');
 const content = document.getElementById('scanner-content');
@@ -53,7 +53,7 @@ function extractToken(raw) {
 
 async function init() {
   if (!editKey) return showLocked();
-  const { data, error } = await supabase.rpc('has_menu_key');
+  const { data, error } = await supabase.rpc('has_staff_key');
   if (error || !data) return showLocked();
   content.hidden = false;
   await loadPending();

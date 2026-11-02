@@ -21,7 +21,7 @@ Esta branch (`codex/beta-pedidos`) é isolada do cardápio público.
 
 ## Terceira etapa
 
-- Tela privada `scanner.html`, protegida pela mesma chave do editor.
+- Tela privada `scanner.html`, com uma chave própria que não dá acesso ao editor.
 - Leitura do QR Code pela câmera traseira, com alternativa compatível para iPhone.
 - Conferência dos itens e entrega de uso único.
 - Lista compacta dos pedidos ainda pendentes.
