@@ -2,7 +2,7 @@ import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
 } from './shared.js?v=202611022037';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611021747';
+import { SUPABASE_URL, SUPABASE_KEY, MERCADOPAGO_PUBLIC_KEY } from './config.js?v=202611030230';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -609,11 +609,15 @@ function renderCart() {
 function setCartView(view) {
   document.getElementById('cart-view').hidden = view !== 'cart';
   document.getElementById('checkout-form').hidden = view !== 'checkout';
+  document.getElementById('payment-checkout').hidden = view !== 'payment';
+  document.getElementById('pix-pending').hidden = view !== 'pix';
   document.getElementById('payment-pending').hidden = view !== 'pending';
   document.getElementById('order-success').hidden = view !== 'success';
   const titles = {
     cart: ['Seu pedido', 'Carrinho'],
     checkout: ['Pedido', 'Identificação'],
+    payment: ['Pagamento', 'Como deseja pagar?'],
+    pix: ['Pagamento', 'Pix'],
     pending: ['Pagamento', 'Aguarde'],
     success: ['Retirada', 'QR Code'],
   };
@@ -672,6 +676,8 @@ async function renderOrderQr(order) {
 }
 
 const cartDialog = document.getElementById('cart-dialog');
+let paymentBrickController = null;
+let checkoutDraft = null;
 document.getElementById('cart-bar').addEventListener('click', () => {
   renderCart();
   setCartView('cart');
@@ -688,6 +694,7 @@ document.getElementById('cart-clear').addEventListener('click', () => {
 });
 document.getElementById('cart-continue').addEventListener('click', showCheckout);
 document.getElementById('checkout-back').addEventListener('click', () => setCartView('cart'));
+document.getElementById('payment-back').addEventListener('click', () => setCartView('checkout'));
 document.getElementById('checkout-phone').addEventListener('input', (event) => {
   event.target.value = formatWhatsapp(event.target.value);
 });
@@ -721,9 +728,84 @@ document.getElementById('checkout-form').addEventListener('submit', async (event
   }
 
   submit.disabled = true;
-  submit.textContent = 'Abrindo…';
+  submit.textContent = 'Carregando…';
   error.hidden = true;
 
+  try {
+    checkoutDraft = {
+      name,
+      phone: phoneDigits,
+      email,
+      items: cart.map((row) => ({ item_id: row.itemId, variant: row.variant, quantity: row.quantity })),
+      customer: { name, phone: formatWhatsapp(phoneDigits), email },
+    };
+    await renderPaymentBrick(cartTotal());
+    setCartView('payment');
+  } catch (requestError) {
+    error.textContent = requestError?.message || 'Não foi possível abrir o pagamento.';
+    error.hidden = false;
+  } finally {
+    submit.disabled = false;
+    submit.textContent = 'Escolher pagamento';
+  }
+});
+updateCartBar();
+
+async function renderPaymentBrick(amount) {
+  if (!window.MercadoPago) throw new Error('Pagamento ainda está carregando. Tente novamente.');
+  if (paymentBrickController) await paymentBrickController.unmount();
+  document.getElementById('payment-brick').replaceChildren();
+  const mp = new window.MercadoPago(MERCADOPAGO_PUBLIC_KEY, { locale: 'pt-BR' });
+  paymentBrickController = await mp.bricks().create('payment', 'payment-brick', {
+    initialization: { amount },
+    customization: {
+      visual: {
+        style: {
+          theme: 'dark',
+          customVariables: {
+            baseColor: '#f8c21c',
+            baseColorFirstVariant: '#dba600',
+            baseColorSecondVariant: '#b87cff',
+            errorColor: '#ffaaaa',
+            successColor: '#f8c21c',
+            outlinePrimaryColor: '#9d4dff',
+            borderRadiusMedium: '10px',
+          },
+        },
+      },
+      paymentMethods: {
+        creditCard: 'all',
+        debitCard: 'all',
+        prepaidCard: 'all',
+        bankTransfer: ['pix'],
+        ticket: [],
+        mercadoPago: [],
+        maxInstallments: 12,
+      },
+    },
+    callbacks: {
+      onReady: () => {},
+      onSubmit: ({ formData }) => processTransparentPayment(formData),
+      onError: () => showPaymentError('Não foi possível carregar esta forma de pagamento.'),
+    },
+  });
+}
+
+function showPaymentError(message) {
+  const error = document.getElementById('payment-error');
+  error.textContent = message;
+  error.hidden = false;
+}
+
+function providerStateToLocal(data) {
+  if (data.payment_status === 'paid') return 'paid';
+  if (['failed', 'refunded'].includes(data.payment_status)) return 'failed';
+  return 'pending';
+}
+
+async function processTransparentPayment(paymentData) {
+  document.getElementById('payment-error').hidden = true;
+  if (!checkoutDraft) throw new Error('Pedido não encontrado');
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/mercadopago-checkout`, {
       method: 'POST',
@@ -732,37 +814,56 @@ document.getElementById('checkout-form').addEventListener('submit', async (event
         apikey: SUPABASE_KEY,
         Authorization: `Bearer ${SUPABASE_KEY}`,
       },
-      body: JSON.stringify({
-        name,
-        phone: phoneDigits,
-        email,
-        items: cart.map((row) => ({
-        item_id: row.itemId,
-        variant: row.variant,
-        quantity: row.quantity,
-        })),
-      }),
+      body: JSON.stringify({ ...checkoutDraft, payment_data: paymentData }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data?.order?.token || !data?.checkout_url) throw new Error(data?.error || 'Pagamento indisponível');
-
-    const order = {
-      ...data.order,
-      customer: { name, phone: formatWhatsapp(phoneDigits), email },
-    };
+    if (!response.ok || !data?.order?.token) throw new Error(data?.error || 'Pagamento indisponível');
+    const order = { ...data.order, customer: checkoutDraft.customer, payment_status: providerStateToLocal(data) };
     localStorage.setItem(BETA_ORDER_KEY, JSON.stringify(order));
     cart = [];
     saveCart();
-    location.assign(data.checkout_url);
-  } catch (requestError) {
-    error.textContent = requestError?.message || 'Não foi possível abrir o pagamento.';
-    error.hidden = false;
-  } finally {
-    submit.disabled = false;
-    submit.textContent = 'Ir para pagamento';
+    if (data.payment_status === 'paid') {
+      showOrderSuccess(order);
+    } else if (data.pix?.qr_code) {
+      showPixPayment(order, data.pix);
+    } else if (data.payment_status === 'failed') {
+      throw new Error('Pagamento não aprovado. Confira os dados e tente novamente.');
+    } else {
+      setCartView('pending');
+      pollPayment(order);
+    }
+  } catch (error) {
+    showPaymentError(error?.message || 'Não foi possível processar o pagamento.');
+    throw error;
+  }
+}
+
+function showPixPayment(order, pix) {
+  const image = document.getElementById('pix-qr');
+  image.src = pix.qr_code_base64 ? `data:image/png;base64,${pix.qr_code_base64}` : '';
+  image.hidden = !pix.qr_code_base64;
+  document.getElementById('pix-copy').dataset.code = pix.qr_code;
+  setCartView('pix');
+  pollPayment(order);
+}
+
+document.getElementById('pix-copy').addEventListener('click', async (event) => {
+  const code = event.currentTarget.dataset.code || '';
+  const feedback = document.getElementById('pix-copy-feedback');
+  try {
+    await navigator.clipboard.writeText(code);
+    feedback.textContent = 'Código Pix copiado.';
+  } catch {
+    feedback.textContent = 'Não foi possível copiar. Pressione o código para selecionar.';
   }
 });
-updateCartBar();
+
+async function pollPayment(order) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    try { if (await refreshPayment(order, true)) return; } catch { /* tenta novamente */ }
+  }
+}
 
 async function refreshPayment(order, quiet = false) {
   if (!quiet) setCartView('pending');
@@ -793,11 +894,9 @@ async function refreshPayment(order, quiet = false) {
 }
 
 async function resumePaymentReturn() {
-  if (new URLSearchParams(location.search).get('payment') !== 'return') return;
-  history.replaceState(null, '', `${location.pathname}${location.hash}`);
   let order;
   try { order = JSON.parse(localStorage.getItem(BETA_ORDER_KEY) || 'null'); } catch { order = null; }
-  if (!order?.token) return;
+  if (!order?.token || order.payment_status === 'paid') return;
   setCartView('pending');
   cartDialog.showModal();
   for (let attempt = 0; attempt < 12; attempt += 1) {

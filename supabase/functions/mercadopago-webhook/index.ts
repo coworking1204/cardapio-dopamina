@@ -25,6 +25,13 @@ function paymentState(order: any) {
   return 'pending';
 }
 
+function directPaymentState(payment: any) {
+  if (payment?.status === 'approved') return 'paid';
+  if (payment?.status === 'refunded' || payment?.status === 'charged_back') return 'refunded';
+  if (['rejected', 'cancelled'].includes(payment?.status)) return 'failed';
+  return 'pending';
+}
+
 function timingSafeEqual(a: string, b: string) {
   if (a.length !== b.length) return false;
   let result = 0;
@@ -60,15 +67,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const response = await fetch(`https://api.mercadopago.com/v1/orders/${encodeURIComponent(dataId)}`, {
+    const isPayment = String(body?.type || body?.action || '').toLowerCase().includes('payment');
+    const response = await fetch(`https://api.mercadopago.com/v1/${isPayment ? 'payments' : 'orders'}/${encodeURIComponent(dataId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const order = await response.json().catch(() => ({}));
     if (!response.ok || !order?.id) return new Response('temporary failure', { status: 503 });
     await rpc('update_payment_by_provider_internal', {
-      p_provider_order_id: order.id,
+      p_provider_order_id: isPayment ? `pay_${order.id}` : order.id,
       p_provider_status: `${order.status || 'unknown'}:${order.status_detail || ''}`,
-      p_payment_status: paymentState(order),
+      p_payment_status: isPayment ? directPaymentState(order) : paymentState(order),
     });
     return new Response('ok', { status: 200 });
   } catch {

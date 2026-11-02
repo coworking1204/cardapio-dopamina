@@ -45,6 +45,13 @@ function paymentState(order: any) {
   return 'pending';
 }
 
+function directPaymentState(payment: any) {
+  if (payment?.status === 'approved') return 'paid';
+  if (payment?.status === 'refunded' || payment?.status === 'charged_back') return 'refunded';
+  if (['rejected', 'cancelled'].includes(payment?.status)) return 'failed';
+  return 'pending';
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
@@ -63,13 +70,15 @@ Deno.serve(async (req) => {
     if (!local?.provider_order_id) return json({ error: 'Pagamento não encontrado' }, 404, origin);
     if (local.payment_status === 'paid') return json({ payment_status: 'paid', order: await rpc('update_payment_sync_internal', { p_token: token, p_provider_status: 'processed', p_payment_status: 'paid' }) });
 
-    const response = await fetch(`https://api.mercadopago.com/v1/orders/${encodeURIComponent(local.provider_order_id)}`, {
+    const isPayment = String(local.provider_order_id).startsWith('pay_');
+    const providerId = isPayment ? String(local.provider_order_id).slice(4) : local.provider_order_id;
+    const response = await fetch(`https://api.mercadopago.com/v1/${isPayment ? 'payments' : 'orders'}/${encodeURIComponent(providerId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const mp = await response.json().catch(() => ({}));
     if (!response.ok) return json({ payment_status: local.payment_status || 'pending' }, 200, origin);
 
-    const state = paymentState(mp);
+    const state = isPayment ? directPaymentState(mp) : paymentState(mp);
     const order = await rpc('update_payment_sync_internal', {
       p_token: token,
       p_provider_status: `${mp.status || 'unknown'}:${mp.status_detail || ''}`,

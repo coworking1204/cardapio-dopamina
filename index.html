@@ -44,13 +44,15 @@
   }
   </script>
   <link rel="preconnect" href="https://zpwquzllpdqrpmwniupn.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://sdk.mercadopago.com" crossorigin>
   <link rel="modulepreload" href="assets/shared.js?v=202611022037">
   <link rel="modulepreload" href="assets/config.js?v=202611022037">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=202611030120">
-  <script type="module" src="assets/app.js?v=202611030120"></script>
+  <link rel="stylesheet" href="assets/styles.css?v=202611030230">
+  <script type="module" src="assets/app.js?v=202611030230"></script>
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
 </head>
 <body class="menu-page">
   <header class="masthead">
@@ -114,7 +116,7 @@
         <ul id="cart-items" class="cart-items"></ul>
         <footer id="cart-footer" class="cart-footer" hidden>
           <div class="cart-total-line"><span>Subtotal</span><strong id="cart-total"></strong></div>
-          <p class="cart-beta-note">Pagamento de teste pelo Mercado Pago</p>
+          <p class="cart-beta-note">Pagamento seguro dentro do cardápio</p>
           <div class="cart-footer-actions">
             <button id="cart-clear" class="cart-clear" type="button">Limpar</button>
             <button id="cart-continue" class="cart-continue" type="button">Continuar</button>
@@ -139,8 +141,23 @@
           <span>Resumo</span>
           <strong id="checkout-summary"></strong>
         </div>
-        <button id="checkout-submit" class="checkout-submit" type="submit">Ir para pagamento</button>
+        <button id="checkout-submit" class="checkout-submit" type="submit">Escolher pagamento</button>
       </form>
+
+      <section id="payment-checkout" class="payment-checkout" hidden>
+        <button id="payment-back" class="checkout-back" type="button">← Voltar</button>
+        <div id="payment-brick" class="payment-brick"></div>
+        <p id="payment-error" class="checkout-error" role="alert" hidden></p>
+      </section>
+
+      <section id="pix-pending" class="pix-pending" hidden>
+        <p class="pix-label">Pague pelo aplicativo do seu banco</p>
+        <img id="pix-qr" class="pix-qr" alt="QR Code Pix do pagamento">
+        <button id="pix-copy" class="pix-copy" type="button">Copiar código Pix</button>
+        <p id="pix-copy-feedback" class="pix-copy-feedback" role="status"></p>
+        <span class="payment-loader" aria-hidden="true"></span>
+        <p class="pix-waiting">Aguardando confirmação do Pix…</p>
+      </section>
 
       <section id="payment-pending" class="payment-pending" hidden>
         <span class="payment-loader" aria-hidden="true"></span>
@@ -157,7 +174,7 @@
           <span id="success-items"></span>
           <strong id="success-total"></strong>
         </div>
-        <p class="success-warning">Pagamento de teste · QR Code de uso único</p>
+        <p class="success-warning">Pagamento confirmado · QR Code de uso único</p>
         <button class="success-close" type="button" data-cart-close>Fechar</button>
       </section>
     </section>

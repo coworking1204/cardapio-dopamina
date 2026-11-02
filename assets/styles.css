@@ -966,6 +966,65 @@ body {
   overflow-y: auto;
 }
 
+.payment-checkout,
+.pix-pending {
+  padding: 14px var(--gutter) calc(18px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+}
+
+.payment-brick {
+  min-height: 280px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.payment-checkout .checkout-error {
+  margin-top: 12px;
+}
+
+.pix-pending {
+  text-align: center;
+}
+
+.pix-label {
+  margin: 2px 0 14px;
+  color: var(--lilac);
+  font-size: 0.7rem;
+}
+
+.pix-qr {
+  display: block;
+  width: min(58vw, 220px);
+  margin: 0 auto 12px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.pix-copy {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #160d00;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.pix-copy-feedback,
+.pix-waiting {
+  min-height: 1em;
+  margin: 8px 0 16px;
+  color: var(--lilac);
+  font-size: 0.65rem;
+}
+
+.pix-pending .payment-loader {
+  margin-top: 18px;
+}
+
 .checkout-back {
   margin: 0 0 16px;
   padding: 0;

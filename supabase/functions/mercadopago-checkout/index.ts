@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
   const phone = String(input?.phone || '').replace(/\D/g, '');
   const email = String(input?.email || '').trim().toLowerCase();
   const items = Array.isArray(input?.items) ? input.items : [];
+  const paymentData = input?.payment_data && typeof input.payment_data === 'object' ? input.payment_data : {};
   if (name.length < 2 || name.length > 80 || phone.length < 10 || phone.length > 13 || email.length > 160 || items.length < 1) {
     return json({ error: 'Confira seus dados e o pedido' }, 400, origin);
   }
@@ -69,40 +70,45 @@ Deno.serve(async (req) => {
     return json({ error: 'Não foi possível criar o pedido' }, 400, origin);
   }
 
-  const returnUrl = `${BETA_ORIGIN}/?payment=return`;
-  const amount = Number(order.total).toFixed(2);
+  const amount = Number(order.total);
   const idempotencyKey = crypto.randomUUID();
-  const names = name.split(' ');
-  const areaCode = phone.slice(-11, -9);
-  const phoneNumber = phone.slice(-9);
-  const payload = {
-    type: 'online',
-    processing_mode: 'manual',
-    capture_mode: 'automatic_async',
-    total_amount: amount,
+  const paymentMethodId = String(paymentData.payment_method_id || paymentData.paymentMethodId || '').trim();
+  const tokenizedCard = String(paymentData.token || '').trim();
+  const installments = Math.min(12, Math.max(1, Number(paymentData.installments) || 1));
+  const issuerId = String(paymentData.issuer_id || paymentData.issuerId || '').trim();
+  const identification = paymentData?.payer?.identification || {};
+  if (!/^[a-z0-9_-]{2,40}$/i.test(paymentMethodId)) {
+    await rpc('fail_payment_order_internal', { p_code: order.code, p_provider_status: 'invalid_payment_method' });
+    return json({ error: 'Forma de pagamento inválida' }, 400, origin);
+  }
+  if (paymentMethodId !== 'pix' && !tokenizedCard) {
+    await rpc('fail_payment_order_internal', { p_code: order.code, p_provider_status: 'missing_card_token' });
+    return json({ error: 'Dados do cartão incompletos' }, 400, origin);
+  }
+  const payload: any = {
+    transaction_amount: amount,
+    description: `Pedido ${order.code} · Dopamina`,
+    payment_method_id: paymentMethodId,
+    installments,
     external_reference: order.code,
-    expiration_time: 'P1D',
     payer: {
       email,
-      first_name: names.shift() || name,
-      last_name: names.join(' ') || undefined,
-      phone: { area_code: areaCode, number: phoneNumber },
+      first_name: name.split(' ')[0],
+      last_name: name.split(' ').slice(1).join(' ') || undefined,
+      identification: identification?.type && identification?.number ? {
+        type: String(identification.type).slice(0, 10),
+        number: String(identification.number).replace(/\D/g, '').slice(0, 20),
+      } : undefined,
     },
-    config: {
-      statement_descriptor: 'DOPAMINA',
-      online: {
-        success_url: returnUrl,
-        failure_url: returnUrl,
-        pending_url: returnUrl,
-        auto_return: 'approved',
-      },
-      payment_method: { max_installments: 12 },
-    },
-    items: order.items,
+    statement_descriptor: 'DOPAMINA',
+    notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`,
+    metadata: { order_code: order.code },
   };
+  if (tokenizedCard) payload.token = tokenizedCard;
+  if (issuerId) payload.issuer_id = issuerId;
 
   try {
-    const response = await fetch('https://api.mercadopago.com/v1/orders', {
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -112,20 +118,33 @@ Deno.serve(async (req) => {
       body: JSON.stringify(payload),
     });
     const mp = await response.json().catch(() => ({}));
-    if (!response.ok || !mp.id || !mp.checkout_url) {
+    if (!response.ok || !mp.id) {
       const detail = JSON.stringify(mp?.errors || mp?.error || mp?.message || mp?.code || `http_${response.status}`).slice(0, 120);
       console.error('Mercado Pago create order failed', response.status, detail);
       await rpc('fail_payment_order_internal', { p_code: order.code, p_provider_status: detail });
-      return json({ error: 'O Mercado Pago não conseguiu abrir o pagamento' }, 502, origin);
+      return json({ error: 'O pagamento não pôde ser processado' }, 502, origin);
     }
     await rpc('attach_payment_provider_order_internal', {
       p_code: order.code,
-      p_provider_order_id: mp.id,
+      p_provider_order_id: `pay_${mp.id}`,
       p_provider_status: mp.status || 'created',
     });
+    const paymentStatus = mp.status === 'approved' ? 'paid' : ['rejected', 'cancelled', 'refunded', 'charged_back'].includes(mp.status) ? 'failed' : 'pending';
+    if (paymentStatus !== 'pending') {
+      await rpc('update_payment_by_provider_internal', {
+        p_provider_order_id: `pay_${mp.id}`,
+        p_provider_status: `${mp.status || 'unknown'}:${mp.status_detail || ''}`,
+        p_payment_status: paymentStatus,
+      });
+    }
+    const transactionData = mp?.point_of_interaction?.transaction_data || {};
     return json({
-      checkout_url: mp.checkout_url,
-      order: { code: order.code, token: order.token, quantity: order.quantity, total: order.total, payment_status: 'pending' },
+      payment_status: paymentStatus,
+      pix: paymentMethodId === 'pix' ? {
+        qr_code: transactionData.qr_code || null,
+        qr_code_base64: transactionData.qr_code_base64 || null,
+      } : null,
+      order: { code: order.code, token: order.token, quantity: order.quantity, total: order.total, payment_status: paymentStatus },
     }, 201, origin);
   } catch {
     await rpc('fail_payment_order_internal', { p_code: order.code, p_provider_status: 'network_error' }).catch(() => {});
