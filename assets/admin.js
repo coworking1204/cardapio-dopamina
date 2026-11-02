@@ -1,8 +1,8 @@
-import { supabase, editKey } from './client.js?v=202611021738';
+import { supabase, editKey } from './client.js?v=202611021741';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime,
-} from './shared.js?v=202611021738';
+} from './shared.js?v=202611021741';
 
 const $ = (id) => document.getElementById(id);
 

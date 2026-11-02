@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
-} from './shared.js?v=202611021738';
+} from './shared.js?v=202611021741';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -233,18 +233,7 @@ function showCached() {
 
 function renderHeader(settings) {
   const name = settings.bar_name || 'Dopamina Gastrobar';
-  const brand = name.trim().toUpperCase();
-  if (brand === 'DOPAMINA') {
-    els.barName.replaceChildren(
-      document.createTextNode('D'),
-      h('span', { class: 'brand-letter brand-o' }, 'O'),
-      document.createTextNode('PAM'),
-      h('span', { class: 'brand-letter brand-i' }, 'I'),
-      document.createTextNode('NA'),
-    );
-  } else {
-    els.barName.textContent = name;
-  }
+  els.barName.textContent = name;
   document.title = `Cardápio ${name} | Uberaba - MG`;
   els.tagline.textContent = settings.tagline || '';
   els.tagline.hidden = !settings.tagline;
@@ -565,7 +554,7 @@ load().then(startLiveUpdates);
 // Tempo real: a biblioteca do Supabase só é baixada depois que o cardápio já está na tela.
 async function startLiveUpdates() {
   try {
-    const { supabase } = await import('./client.js?v=202611021738');
+    const { supabase } = await import('./client.js?v=202611021741');
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)
