@@ -1114,6 +1114,48 @@ body {
   width: 100%;
 }
 
+.payment-pending {
+  padding: 42px var(--gutter) calc(34px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  text-align: center;
+}
+
+.payment-pending strong {
+  display: block;
+  color: var(--gold);
+  font-size: 0.95rem;
+}
+
+.payment-pending p {
+  margin: 7px 0 18px;
+  color: var(--lilac);
+  font-size: 0.7rem;
+}
+
+.payment-loader {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto 16px;
+  border: 2px solid rgb(255 255 255 / 0.12);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: payment-spin 0.8s linear infinite;
+}
+
+.payment-refresh {
+  padding: 8px 14px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--white);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+@keyframes payment-spin { to { transform: rotate(360deg); } }
+
 /* Retirada: a câmera do celular abre esta tela pelo QR Code. */
 .pickup-page {
   min-height: 100dvh;

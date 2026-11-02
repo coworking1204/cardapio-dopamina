@@ -2,6 +2,7 @@ import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
 } from './shared.js?v=202611022037';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611021747';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -608,10 +609,12 @@ function renderCart() {
 function setCartView(view) {
   document.getElementById('cart-view').hidden = view !== 'cart';
   document.getElementById('checkout-form').hidden = view !== 'checkout';
+  document.getElementById('payment-pending').hidden = view !== 'pending';
   document.getElementById('order-success').hidden = view !== 'success';
   const titles = {
     cart: ['Seu pedido', 'Carrinho'],
     checkout: ['Pedido', 'Identificação'],
+    pending: ['Pagamento', 'Aguarde'],
     success: ['Retirada', 'QR Code'],
   };
   document.getElementById('cart-kicker').textContent = titles[view][0];
@@ -692,9 +695,11 @@ document.getElementById('checkout-form').addEventListener('submit', async (event
   event.preventDefault();
   const nameInput = document.getElementById('checkout-name');
   const phoneInput = document.getElementById('checkout-phone');
+  const emailInput = document.getElementById('checkout-email');
   const submit = document.getElementById('checkout-submit');
   const name = nameInput.value.trim().replace(/\s+/g, ' ');
   const phoneDigits = localPhoneDigits(phoneInput.value);
+  const email = emailInput.value.trim().toLowerCase();
   const error = document.getElementById('checkout-error');
   if (name.length < 2) {
     error.textContent = 'Digite seu nome para identificar o pedido.';
@@ -708,41 +713,115 @@ document.getElementById('checkout-form').addEventListener('submit', async (event
     phoneInput.focus();
     return;
   }
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    error.textContent = 'Digite um e-mail válido.';
+    error.hidden = false;
+    emailInput.focus();
+    return;
+  }
 
   submit.disabled = true;
-  submit.textContent = 'Gerando…';
+  submit.textContent = 'Abrindo…';
   error.hidden = true;
 
   try {
-    const { supabase } = await import('./client.js?v=202611022120');
-    const { data, error: requestError } = await supabase.rpc('create_guest_order', {
-      p_customer_name: name,
-      p_customer_phone: phoneDigits,
-      p_items: cart.map((row) => ({
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/mercadopago-checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({
+        name,
+        phone: phoneDigits,
+        email,
+        items: cart.map((row) => ({
         item_id: row.itemId,
         variant: row.variant,
         quantity: row.quantity,
-      })),
+        })),
+      }),
     });
-    if (requestError || !data?.token) throw requestError || new Error('Pedido sem identificação');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.order?.token || !data?.checkout_url) throw new Error(data?.error || 'Pagamento indisponível');
 
     const order = {
-      ...data,
-      customer: { name, phone: formatWhatsapp(phoneDigits) },
+      ...data.order,
+      customer: { name, phone: formatWhatsapp(phoneDigits), email },
     };
     localStorage.setItem(BETA_ORDER_KEY, JSON.stringify(order));
     cart = [];
     saveCart();
-    showOrderSuccess(order);
-  } catch {
-    error.textContent = 'Não foi possível gerar o pedido. Tente novamente.';
+    location.assign(data.checkout_url);
+  } catch (requestError) {
+    error.textContent = requestError?.message || 'Não foi possível abrir o pagamento.';
     error.hidden = false;
   } finally {
     submit.disabled = false;
-    submit.textContent = 'Gerar QR Code';
+    submit.textContent = 'Ir para pagamento';
   }
 });
 updateCartBar();
+
+async function refreshPayment(order, quiet = false) {
+  if (!quiet) setCartView('pending');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/mercadopago-status`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({ token: order.token }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || 'Consulta indisponível');
+  if (data.payment_status === 'paid') {
+    const confirmed = { ...order, ...data.order, token: order.token, payment_status: 'paid' };
+    localStorage.setItem(BETA_ORDER_KEY, JSON.stringify(confirmed));
+    showOrderSuccess(confirmed);
+    return true;
+  }
+  if (['failed', 'refunded'].includes(data.payment_status)) {
+    document.querySelector('#payment-pending strong').textContent = 'Pagamento não aprovado';
+    document.querySelector('#payment-pending p').textContent = 'Volte ao cardápio e tente novamente.';
+    document.getElementById('payment-refresh').hidden = true;
+    return true;
+  }
+  return false;
+}
+
+async function resumePaymentReturn() {
+  if (new URLSearchParams(location.search).get('payment') !== 'return') return;
+  history.replaceState(null, '', `${location.pathname}${location.hash}`);
+  let order;
+  try { order = JSON.parse(localStorage.getItem(BETA_ORDER_KEY) || 'null'); } catch { order = null; }
+  if (!order?.token) return;
+  setCartView('pending');
+  cartDialog.showModal();
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      if (await refreshPayment(order, true)) return;
+    } catch {
+      // O botão manual continua disponível se a rede oscilar.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+  document.querySelector('#payment-pending strong').textContent = 'Pagamento em análise';
+  document.querySelector('#payment-pending p').textContent = 'Toque em atualizar daqui a pouco.';
+}
+
+document.getElementById('payment-refresh').addEventListener('click', async () => {
+  let order;
+  try { order = JSON.parse(localStorage.getItem(BETA_ORDER_KEY) || 'null'); } catch { order = null; }
+  if (!order?.token) return;
+  const button = document.getElementById('payment-refresh');
+  button.disabled = true;
+  try { await refreshPayment(order); } finally { button.disabled = false; }
+});
+
+resumePaymentReturn();
 
 /* ---------- Foto do item (desliza para ver as outras fotos da aba) ---------- */
 

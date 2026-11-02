@@ -49,8 +49,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=202611022120">
-  <script type="module" src="assets/app.js?v=202611022120"></script>
+  <link rel="stylesheet" href="assets/styles.css?v=202611030120">
+  <script type="module" src="assets/app.js?v=202611030120"></script>
 </head>
 <body class="menu-page">
   <header class="masthead">
@@ -114,7 +114,7 @@
         <ul id="cart-items" class="cart-items"></ul>
         <footer id="cart-footer" class="cart-footer" hidden>
           <div class="cart-total-line"><span>Subtotal</span><strong id="cart-total"></strong></div>
-          <p class="cart-beta-note">Teste · sem cobrança</p>
+          <p class="cart-beta-note">Pagamento de teste pelo Mercado Pago</p>
           <div class="cart-footer-actions">
             <button id="cart-clear" class="cart-clear" type="button">Limpar</button>
             <button id="cart-continue" class="cart-continue" type="button">Continuar</button>
@@ -130,14 +130,24 @@
         <label class="checkout-field">WhatsApp
           <input id="checkout-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="19" placeholder="(34) 99999-9999" required>
         </label>
-        <p class="checkout-privacy">Usado somente para identificar a retirada.</p>
+        <label class="checkout-field">E-mail
+          <input id="checkout-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="160" placeholder="voce@email.com" required>
+        </label>
+        <p class="checkout-privacy">Dados usados somente para pagamento e retirada.</p>
         <p id="checkout-error" class="checkout-error" role="alert" hidden></p>
         <div class="checkout-summary">
           <span>Resumo</span>
           <strong id="checkout-summary"></strong>
         </div>
-        <button id="checkout-submit" class="checkout-submit" type="submit">Gerar QR Code</button>
+        <button id="checkout-submit" class="checkout-submit" type="submit">Ir para pagamento</button>
       </form>
+
+      <section id="payment-pending" class="payment-pending" hidden>
+        <span class="payment-loader" aria-hidden="true"></span>
+        <strong>Confirmando pagamento</strong>
+        <p>Isso leva só alguns segundos.</p>
+        <button id="payment-refresh" class="payment-refresh" type="button">Atualizar</button>
+      </section>
 
       <section id="order-success" class="order-success" hidden>
         <p class="success-label">Apresente na retirada</p>
@@ -147,7 +157,7 @@
           <span id="success-items"></span>
           <strong id="success-total"></strong>
         </div>
-        <p class="success-warning">Pedido beta · nenhuma cobrança realizada</p>
+        <p class="success-warning">Pagamento de teste · QR Code de uso único</p>
         <button class="success-close" type="button" data-cart-close>Fechar</button>
       </section>
     </section>
