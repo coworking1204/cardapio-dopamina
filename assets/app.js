@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
-} from './shared.js?v=202611021729';
+} from './shared.js?v=202611021733';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -9,7 +9,6 @@ const els = {
   notice: document.getElementById('notice'),
   tabs: document.getElementById('tabs'),
   panel: document.getElementById('panel'),
-  footer: document.getElementById('footer-text'),
   promos: document.getElementById('promo-banner'),
 };
 
@@ -240,8 +239,6 @@ function renderHeader(settings) {
   els.tagline.hidden = !settings.tagline;
   els.notice.textContent = settings.notice_text || '';
   els.notice.hidden = !(settings.notice_active && settings.notice_text);
-  els.footer.textContent = settings.footer_text || '';
-  els.footer.hidden = !settings.footer_text;
 }
 
 function currentSection() {
@@ -556,7 +553,7 @@ load().then(startLiveUpdates);
 // Tempo real: a biblioteca do Supabase só é baixada depois que o cardápio já está na tela.
 async function startLiveUpdates() {
   try {
-    const { supabase } = await import('./client.js?v=202611021729');
+    const { supabase } = await import('./client.js?v=202611021733');
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)
