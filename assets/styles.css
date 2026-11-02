@@ -287,10 +287,16 @@ body {
 
 .menu-page .tabs-track {
   gap: 2px;
-  padding: 4px;
+  padding-block: 4px;
+  padding-inline:
+    max(4px, calc(50% - var(--tab-edge-start, 42px)))
+    max(4px, calc(50% - var(--tab-edge-end, 42px)));
   border: 1px solid rgb(255 255 255 / 0.1);
   border-radius: 999px;
   background: rgb(38 38 42 / 0.5);
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 50%;
+  overscroll-behavior-x: contain;
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow:
@@ -304,6 +310,7 @@ body {
   background: transparent;
   color: rgb(255 255 255 / 0.62);
   cursor: pointer;
+  scroll-snap-align: center;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;

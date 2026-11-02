@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
-} from './shared.js?v=202611021348';
+} from './shared.js?v=202611021409';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -16,6 +16,9 @@ const els = {
 let sections = [];
 let firstLoad = true;
 let activeSlug = decodeURIComponent(location.hash.slice(1));
+let tabScrollFrame = 0;
+let tabScrollTimer = 0;
+let ignoreTabScrollUntil = 0;
 
 const CACHE_KEY = 'menu-cache-v1';
 let lastJson = '';
@@ -245,7 +248,7 @@ function currentSection() {
   return sections.find((s) => s.slug === activeSlug) ?? sections[0];
 }
 
-function renderTabs() {
+function renderTabs({ center = true } = {}) {
   const current = currentSection();
   // As abas só são recriadas quando a lista muda. Recriar no meio do toque tiraria a aba da
   // página antes de o navegador acionar o interruptor da vibração.
@@ -278,7 +281,71 @@ function renderTabs() {
   for (const tab of els.tabs.children) {
     tab.setAttribute('aria-selected', String(tab.dataset.slug === current?.slug));
   }
-  els.tabs.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  requestAnimationFrame(() => {
+    updateTabEdgeSpace();
+    if (center) centerTab(current?.slug, 'smooth');
+  });
+}
+
+// Dá espaço nas pontas para a primeira e a última categoria também conseguirem parar no centro.
+function updateTabEdgeSpace() {
+  const first = els.tabs.firstElementChild;
+  const last = els.tabs.lastElementChild;
+  if (!first || !last) return;
+  els.tabs.style.setProperty('--tab-edge-start', `${first.offsetWidth / 2}px`);
+  els.tabs.style.setProperty('--tab-edge-end', `${last.offsetWidth / 2}px`);
+}
+
+function centerTab(slug, behavior = 'smooth') {
+  const tab = [...els.tabs.children].find((item) => item.dataset.slug === slug);
+  if (!tab) return;
+  clearTimeout(tabScrollTimer);
+  const left = tab.offsetLeft + tab.offsetWidth / 2 - els.tabs.clientWidth / 2;
+  ignoreTabScrollUntil = performance.now() + (behavior === 'smooth' ? 450 : 80);
+  els.tabs.scrollTo({ left, behavior });
+}
+
+function closestTabToCenter() {
+  const track = els.tabs.getBoundingClientRect();
+  const center = track.left + track.width / 2;
+  let closest = null;
+  let distance = Infinity;
+  for (const tab of els.tabs.children) {
+    const rect = tab.getBoundingClientRect();
+    const nextDistance = Math.abs(rect.left + rect.width / 2 - center);
+    if (nextDistance < distance) {
+      closest = tab;
+      distance = nextDistance;
+    }
+  }
+  return closest;
+}
+
+// Enquanto a pessoa desliza, a categoria que atravessa o centro vira a categoria aberta.
+// Ao parar, o scroll-snap do CSS encaixa a cápsula mais próxima exatamente no centro.
+els.tabs.addEventListener('scroll', () => {
+  if (performance.now() < ignoreTabScrollUntil) return;
+  cancelAnimationFrame(tabScrollFrame);
+  tabScrollFrame = requestAnimationFrame(() => {
+    const tab = closestTabToCenter();
+    if (tab?.dataset.slug && tab.dataset.slug !== currentSection()?.slug) {
+      select(tab.dataset.slug, { center: false, scrollPage: false, animate: false });
+    }
+  });
+
+  clearTimeout(tabScrollTimer);
+  tabScrollTimer = setTimeout(() => {
+    const tab = closestTabToCenter();
+    if (tab?.dataset.slug) centerTab(tab.dataset.slug);
+  }, 120);
+}, { passive: true });
+
+// Se a pessoa encostar durante um encaixe automático, o dedo volta a comandar na hora.
+for (const type of ['pointerdown', 'touchstart', 'wheel']) {
+  els.tabs.addEventListener(type, () => {
+    ignoreTabScrollUntil = 0;
+    clearTimeout(tabScrollTimer);
+  }, { passive: true });
 }
 
 // Vibração curtinha ao tocar numa aba.
@@ -457,13 +524,13 @@ photoDialog.addEventListener('click', (event) => {
   if (event.target === photoDialog || event.target.closest('[data-close]')) photoDialog.close();
 });
 
-function select(slug) {
+function select(slug, { center = true, scrollPage = true, animate = true } = {}) {
   if (slug === currentSection()?.slug) return;
   activeSlug = slug;
   history.replaceState(null, '', `#${slug}`);
-  renderTabs();
-  renderPanel(true);
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  renderTabs({ center });
+  renderPanel(animate);
+  if (scrollPage) window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 window.addEventListener('hashchange', () => {
@@ -489,7 +556,7 @@ load().then(startLiveUpdates);
 // Tempo real: a biblioteca do Supabase só é baixada depois que o cardápio já está na tela.
 async function startLiveUpdates() {
   try {
-    const { supabase } = await import('./client.js?v=202611021348');
+    const { supabase } = await import('./client.js?v=202611021409');
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)
