@@ -261,9 +261,27 @@ legend {
 
 .card-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-top: 10px;
+}
+
+.card-switches,
+.card-order-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-switches {
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.card-order-actions {
+  margin-left: auto;
 }
 
 /* Interruptor */

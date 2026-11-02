@@ -1,8 +1,8 @@
-import { supabase, editKey } from './client.js?v=202611021741';
+import { supabase, editKey } from './client.js?v=202611021747';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime,
-} from './shared.js?v=202611021741';
+} from './shared.js?v=202611021747';
 
 const $ = (id) => document.getElementById(id);
 
@@ -152,6 +152,7 @@ function renderItemCard(item, index, list) {
   const category = state.categories.find((c) => c.id === item.category_id);
   const priceInput = makePriceInput(item, 'price', category?.price_label);
   const price2Input = category?.price2_label ? makePriceInput(item, 'price2', category.price2_label) : null;
+  const hiddenPill = h('span', { class: 'pill', hidden: item.visible }, 'Oculto');
 
   const availability = h('input', {
     type: 'checkbox',
@@ -170,6 +171,25 @@ function renderItemCard(item, index, list) {
     },
   });
 
+  const visibility = h('input', {
+    type: 'checkbox',
+    checked: item.visible,
+    onchange: async (event) => {
+      const visible = event.target.checked;
+      item.visible = visible;
+      card.classList.toggle('is-hidden', !visible);
+      hiddenPill.hidden = visible;
+      if (await update('menu_items', item.id, { visible })) {
+        toast(visible ? `${item.name} voltou ao cardápio` : `${item.name} foi ocultado do cardápio`);
+      } else {
+        item.visible = !visible;
+        event.target.checked = !visible;
+        card.classList.toggle('is-hidden', visible);
+        hiddenPill.hidden = !visible;
+      }
+    },
+  });
+
   const promo = item.promo_price !== null && Number(item.promo_price) < Number(item.price);
 
   card.append(
@@ -181,7 +201,7 @@ function renderItemCard(item, index, list) {
         h('span', { class: 'card-tags' },
           item.badge ? h('span', { class: 'pill' }, BADGES[item.badge]) : null,
           promo ? h('span', { class: 'pill' }, `Promo ${formatPrice(item.promo_price)}`) : null,
-          item.visible ? null : h('span', { class: 'pill' }, 'Oculto'),
+          hiddenPill,
         ),
       ),
       h('div', { class: 'price-fields' },
@@ -190,11 +210,15 @@ function renderItemCard(item, index, list) {
       ),
     ),
     h('div', { class: 'card-actions' },
-      h('label', { class: 'switch' }, availability, h('span', { class: 'switch-track', 'aria-hidden': 'true' }), 'Disponível'),
-      h('span', { class: 'spacer' }),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Subir', disabled: index === 0, onclick: () => move('menu_items', list, index, -1) }, '↑'),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Descer', disabled: index === list.length - 1, onclick: () => move('menu_items', list, index, 1) }, '↓'),
-      h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => openItem(item) }, 'Editar'),
+      h('div', { class: 'card-switches' },
+        h('label', { class: 'switch' }, availability, h('span', { class: 'switch-track', 'aria-hidden': 'true' }), 'Disponível'),
+        h('label', { class: 'switch' }, visibility, h('span', { class: 'switch-track', 'aria-hidden': 'true' }), 'No cardápio'),
+      ),
+      h('div', { class: 'card-order-actions' },
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Subir', disabled: index === 0, onclick: () => move('menu_items', list, index, -1) }, '↑'),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Descer', disabled: index === list.length - 1, onclick: () => move('menu_items', list, index, 1) }, '↓'),
+        h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => openItem(item) }, 'Editar'),
+      ),
     ),
   );
   return card;
