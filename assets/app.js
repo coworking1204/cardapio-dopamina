@@ -95,7 +95,20 @@ const promoTagText = (promo, status) =>
 function renderPromoBanner() {
   if (!currentMenu) return;
   const promos = currentPromos();
-  const key = promos.map(({ promo, status }) => promo.id + (status.active ? '+' : '-') + (promo.image_url ?? '')).join();
+  // Inclui todo conteúdo visível do card. Assim, uma edição de nome, preço,
+  // horário, itens ou imagem recebida pelo Realtime reconstrói o banner na hora.
+  const key = JSON.stringify(promos.map(({ promo, status }) => ({
+    id: promo.id,
+    active: status.active,
+    name: promo.name,
+    price: promo.price,
+    start_time: promo.start_time,
+    end_time: promo.end_time,
+    category_id: promo.category_id,
+    target: promoTarget(promo),
+    item_ids: promo.item_ids,
+    image_url: promo.image_url,
+  })));
   els.promos.hidden = promos.length === 0;
 
   if (key !== bannerKey) {
@@ -567,6 +580,7 @@ function scheduleReload() {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) scheduleReload();
 });
+window.addEventListener('online', scheduleReload);
 
 showCached();
 load().then(startLiveUpdates);
@@ -578,7 +592,11 @@ async function startLiveUpdates() {
     supabase
       .channel('cardapio')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'menu_settings' }, scheduleReload)
-      .subscribe();
+      .subscribe((status) => {
+        // Ao entrar ou reconectar no canal, busca a versão atual. Isso cobre uma
+        // edição que tenha acontecido enquanto o celular estava sem internet.
+        if (status === 'SUBSCRIBED') scheduleReload();
+      });
   } catch (error) {
     console.error(error); // sem tempo real, o cardápio ainda atualiza ao voltar para a página
   }
