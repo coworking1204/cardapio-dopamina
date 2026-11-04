@@ -310,19 +310,17 @@ body {
 /* Abas do cardápio: uma cápsula de vidro fosco escuro segurando os botões;
    a aba aberta ganha uma cápsula mais clara por trás (como barras de navegação de apps) */
 .menu-page .tabs {
-  padding: 10px 0;
+  padding: 10px var(--gutter);
 }
 
 .menu-page .tabs-track {
-  width: 100%;
   gap: 2px;
   padding-block: 4px;
   padding-inline:
     max(4px, calc(50% - var(--tab-edge-start, 42px)))
     max(4px, calc(50% - var(--tab-edge-end, 42px)));
-  border-block: 1px solid rgb(255 255 255 / 0.1);
-  border-inline: 0;
-  border-radius: 0;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
   background: rgb(38 38 42 / 0.5);
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 50%;
