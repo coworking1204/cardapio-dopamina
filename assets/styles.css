@@ -79,6 +79,34 @@ body {
   text-transform: uppercase;
 }
 
+.brand-letter {
+  position: relative;
+  display: inline-block;
+}
+
+/* Assinatura do logotipo: barra retangular, com cantos retos, sob o O. */
+.brand-letter-o::after {
+  position: absolute;
+  right: 10%;
+  bottom: -0.16em;
+  left: 10%;
+  height: 0.085em;
+  background: currentColor;
+  content: '';
+}
+
+/* O fundo atravessa o I e cria o recorte horizontal da marca. */
+.brand-letter-i::after {
+  position: absolute;
+  top: 48%;
+  right: -0.04em;
+  left: -0.04em;
+  height: 0.105em;
+  background: var(--plum);
+  content: '';
+  transform: translateY(-50%);
+}
+
 .tagline {
   margin: 10px 0 0;
   color: var(--lilac);

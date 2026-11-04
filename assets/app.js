@@ -233,12 +233,26 @@ function showCached() {
 
 function renderHeader(settings) {
   const name = settings.bar_name || 'Dopamina Gastrobar';
-  els.barName.textContent = name;
+  renderBrandName(name);
   document.title = `Cardápio ${name} | Uberaba - MG`;
   els.tagline.textContent = settings.tagline || '';
   els.tagline.hidden = !settings.tagline;
   els.notice.textContent = settings.notice_text || '';
   els.notice.hidden = !(settings.notice_active && settings.notice_text);
+}
+
+function renderBrandName(name) {
+  const normalized = name.trim().toUpperCase();
+  els.barName.setAttribute('aria-label', name);
+  if (normalized !== 'DOPAMINA') {
+    els.barName.textContent = name;
+    return;
+  }
+
+  els.barName.replaceChildren(...[...normalized].map((letter, index) => h('span', {
+    class: `brand-letter${index === 1 ? ' brand-letter-o' : ''}${index === 5 ? ' brand-letter-i' : ''}`,
+    'aria-hidden': 'true',
+  }, letter)));
 }
 
 function currentSection() {
