@@ -212,13 +212,13 @@ body {
   height: 5px;
   border-radius: 50%;
   background: rgb(255 248 234 / 0.3);
-  transition: background-color 0.2s, width 0.2s;
+  transition: opacity 0.2s, width 0.2s;
 }
 
 .promo-dots .dot.is-active {
   width: 14px;
   border-radius: 3px;
-  background: #9d4dff;
+  background: linear-gradient(100deg, var(--gold) 10%, #9d4dff 90%);
 }
 
 .promo-tag {
@@ -252,19 +252,18 @@ body {
 }
 
 .promo-clock {
+  display: inline-block;
   font-size: 1rem;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  animation: promo-clock-pulse 1s ease-in-out infinite;
 }
 
-.is-live .promo-clock {
-  animation: tick 1s steps(1) infinite;
-}
-
-@keyframes tick {
+@keyframes promo-clock-pulse {
   50% {
-    opacity: 0.75;
+    opacity: 0.68;
+    transform: scale(0.985);
   }
 }
 
@@ -583,7 +582,8 @@ body {
 }
 
 .badge-promo {
-  background: var(--gold);
+  background: linear-gradient(100deg, var(--gold) 10%, #9d4dff 90%);
+  color: #17121c;
 }
 
 .badge-novo {
@@ -780,16 +780,28 @@ body {
 
 .photo-close {
   display: block;
-  width: calc(100% - 16px);
-  min-height: 36px;
-  margin: 14px auto 0;
+  width: 100%;
+  min-height: 32px;
+  margin: 10px auto 0;
+  padding: 6px;
   border: 0;
-  border-radius: 9px;
-  background: var(--gold);
-  color: var(--plum-deep);
+  background: transparent;
+  color: var(--white);
   font: inherit;
-  font-weight: 800;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.78;
   cursor: pointer;
+}
+
+.photo-close:active {
+  opacity: 1;
+}
+
+.photo-close:focus-visible {
+  outline: 1px solid rgb(255 255 255 / 0.55);
+  outline-offset: -4px;
 }
 
 @keyframes slide-next {

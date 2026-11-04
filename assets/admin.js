@@ -2,7 +2,7 @@ import { supabase, editKey, clearEditKey } from './client.js?v=202611041800';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime, comparePromotions,
-} from './shared.js?v=202611041900';
+} from './shared.js?v=202611042010';
 
 const $ = (id) => document.getElementById(id);
 const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);

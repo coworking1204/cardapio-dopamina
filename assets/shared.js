@@ -2,7 +2,7 @@ import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611021747';
 
 export const BADGES = {
   novo: 'Novo',
-  mais_pedido: 'Mais pedido',
+  mais_pedido: 'Mais pedido 🔥',
   promo: 'Promo',
 };
 

@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime, comparePromotions,
-} from './shared.js?v=202611041900';
+} from './shared.js?v=202611042010';
 
 const els = {
   barName: document.getElementById('bar-name'),
