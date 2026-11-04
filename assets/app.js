@@ -138,9 +138,31 @@ function renderPromoBanner() {
 
   promos.forEach(({ promo, status }) => {
     const clock = promoTrack.querySelector(`[data-id="${promo.id}"] .promo-clock`);
-    if (clock) clock.textContent = formatCountdown(status.active ? status.endsIn : status.startsIn);
+    if (clock) {
+      const nextText = formatCountdown(status.active ? status.endsIn : status.startsIn);
+      if (clock.textContent !== nextText) {
+        clock.textContent = nextText;
+        pulsePromoClock(clock);
+      }
+    }
   });
   updateDots();
+}
+
+// O Safari do iPhone pode pausar animações CSS contínuas. Disparar um pulso curto
+// junto com a troca do segundo mantém o efeito sincronizado e confiável no iOS.
+function pulsePromoClock(clock) {
+  if (typeof clock.animate === 'function') {
+    clock.getAnimations?.().forEach((animation) => animation.cancel());
+    clock.animate(
+      [{ opacity: 1 }, { opacity: 0.62 }, { opacity: 1 }],
+      { duration: 460, easing: 'ease-in-out' },
+    );
+    return;
+  }
+  clock.classList.remove('is-ticking');
+  void clock.offsetWidth;
+  clock.classList.add('is-ticking');
 }
 
 function promoStep() {

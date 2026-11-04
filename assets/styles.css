@@ -218,7 +218,7 @@ body {
 .promo-dots .dot.is-active {
   width: 14px;
   border-radius: 3px;
-  background: linear-gradient(100deg, var(--gold) 10%, #9d4dff 90%);
+  background: #9d4dff;
 }
 
 .promo-tag {
@@ -257,13 +257,15 @@ body {
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
-  animation: promo-clock-pulse 1s ease-in-out infinite;
+}
+
+.promo-clock.is-ticking {
+  animation: promo-clock-pulse 0.46s ease-in-out;
 }
 
 @keyframes promo-clock-pulse {
   50% {
-    opacity: 0.68;
-    transform: scale(0.985);
+    opacity: 0.62;
   }
 }
 
