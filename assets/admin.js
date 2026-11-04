@@ -1,8 +1,8 @@
 import { supabase, editKey, clearEditKey } from './client.js?v=202611041800';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
-  WEEKDAYS, barNow, promotionStatus, formatTime,
-} from './shared.js?v=202611021747';
+  WEEKDAYS, barNow, promotionStatus, formatTime, comparePromotions,
+} from './shared.js?v=202611041900';
 
 const $ = (id) => document.getElementById(id);
 const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -468,13 +468,41 @@ function promoSummary(promo) {
   return `${describeDays(promo.days)} · ${formatTime(promo.start_time)} às ${formatTime(promo.end_time)} · ${target}`;
 }
 
+function promotionsSorted() {
+  return [...state.promotions].sort(comparePromotions);
+}
+
+async function movePromotion(list, index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= list.length) return;
+  const current = list[index];
+  const neighbor = list[target];
+  const positions = list.map((promo) => Number(promo.position));
+  const usePosition = list.every((promo, i) => promo.position !== null
+    && promo.position !== undefined && Number.isFinite(positions[i]))
+    && new Set(positions).size === list.length;
+  const field = usePosition ? 'position' : 'created_at';
+  const currentValue = current[field];
+  const neighborValue = neighbor[field];
+  current[field] = neighborValue;
+  neighbor[field] = currentValue;
+  render();
+  const results = await Promise.all([
+    update('menu_promotions', current.id, { [field]: current[field] }),
+    update('menu_promotions', neighbor.id, { [field]: neighbor[field] }),
+  ]);
+  if (results.includes(false)) await reload();
+  else toast('Ordem das promoções atualizada');
+}
+
 function renderPromotionsView() {
   const now = barNow();
+  const list = promotionsSorted();
   return h('div', { class: 'stack' },
     h('div', { class: 'view-head' }, h('h1', {}, 'Promoções')),
     h('p', { class: 'muted' }, 'Programe promoções que se repetem toda semana. No horário marcado (de Brasília), o cardápio mostra o preço promocional e um cronômetro; depois volta ao normal sozinho.'),
-    state.promotions.length
-      ? h('ul', { class: 'cards' }, state.promotions.map((promo) => {
+    list.length
+      ? h('ul', { class: 'cards' }, list.map((promo, index) => {
           const status = promotionStatus(promo, now);
           return h('li', { class: `card${promo.active ? '' : ' is-hidden'}` },
             h('div', { class: 'card-main' },
@@ -506,6 +534,10 @@ function renderPromotionsView() {
                 'Ligada',
               ),
               h('span', { class: 'spacer' }),
+              h('div', { class: 'card-order-actions' },
+                h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Subir promoção', disabled: index === 0, onclick: () => movePromotion(list, index, -1) }, '↑'),
+                h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Descer promoção', disabled: index === list.length - 1, onclick: () => movePromotion(list, index, 1) }, '↓'),
+              ),
               h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => openPromotion(promo) }, 'Editar'),
             ),
           );
@@ -640,6 +672,12 @@ promoForm.addEventListener('submit', async (event) => {
     item_ids: itemIds,
     active: f.active.checked,
   };
+  const orderedPositions = state.promotions.map((promo) => Number(promo.position));
+  if (!editingPromo && state.promotions.length
+      && state.promotions.every((promo, i) => promo.position !== null
+        && promo.position !== undefined && Number.isFinite(orderedPositions[i]))) {
+    row.position = Math.max(...orderedPositions) + 1;
+  }
   const query = editingPromo
     ? supabase.from('menu_promotions').update(row).eq('id', editingPromo.id).select().single()
     : supabase.from('menu_promotions').insert(row).select().single();

@@ -63,13 +63,27 @@ export async function fetchMenu(headers = {}) {
     get('menu_items?select=*&order=position.asc,created_at.asc'),
     get('menu_promotions?select=*&order=created_at.asc'),
   ]);
-  return { settings: settings[0] ?? {}, categories, items, promotions };
+  return { settings: settings[0] ?? {}, categories, items, promotions: promotions.sort(comparePromotions) };
 }
 
 /* ---------- Promoções programadas (sempre no horário de Brasília) ---------- */
 
 export const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const DAY = 24 * 3600;
+
+// A coluna position é usada quando já existe no banco. Enquanto a migração não for
+// aplicada, created_at mantém a mesma ordem e também permite reordenar sem interromper o editor.
+export function comparePromotions(a, b) {
+  const aPosition = Number(a.position);
+  const bPosition = Number(b.position);
+  const hasPositions = a.position !== null && a.position !== undefined
+    && b.position !== null && b.position !== undefined
+    && Number.isFinite(aPosition) && Number.isFinite(bPosition)
+    && aPosition !== bPosition;
+  if (hasPositions) return aPosition - bPosition;
+  return String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
+    || String(a.id ?? '').localeCompare(String(b.id ?? ''));
+}
 
 const barClock = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Sao_Paulo',

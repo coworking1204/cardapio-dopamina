@@ -291,8 +291,23 @@ create table if not exists public.menu_promotions (
   active boolean not null default true,
   -- imagem de fundo do card (1500 × 500)
   image_url text,
+  position int not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- Compatibilidade para projetos criados antes da ordenação manual das promoções.
+alter table public.menu_promotions add column if not exists position int;
+with ranked as (
+  select id, row_number() over (order by created_at, id) - 1 as new_position
+  from public.menu_promotions
+)
+update public.menu_promotions as promotion
+set position = ranked.new_position
+from ranked
+where promotion.id = ranked.id and promotion.position is null;
+alter table public.menu_promotions alter column position set default 0;
+alter table public.menu_promotions alter column position set not null;
+create index if not exists menu_promotions_position_idx on public.menu_promotions (position, created_at);
 
 alter table public.menu_promotions enable row level security;
 

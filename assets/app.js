@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
-  barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime,
-} from './shared.js?v=202611021747';
+  barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime, comparePromotions,
+} from './shared.js?v=202611041900';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -54,11 +54,12 @@ function show(menu) {
 
 // Aplica a promoção programada que estiver valendo agora (fica com o menor preço, se houver mais de uma).
 function withPromotions(item, running) {
-  const prices = running.filter((p) => promotionAppliesTo(p, item)).map((p) => Number(p.price));
+  const scheduled = running.filter((p) => promotionAppliesTo(p, item));
+  const prices = scheduled.map((p) => Number(p.price));
   if (item.promo_price !== null) prices.push(Number(item.promo_price));
   const best = Math.min(...prices);
   if (!(best < Number(item.price))) return item;
-  return { ...item, promo_price: best, badge: item.badge || 'promo' };
+  return { ...item, promo_price: best, badge: scheduled.length ? 'promo' : (item.badge || 'promo') };
 }
 
 /* ---------- Faixa de promoções com cronômetro ---------- */
@@ -83,7 +84,7 @@ function currentPromos() {
     .filter((p) => visible.has(p.category_id))
     .map((p) => ({ promo: p, status: promotionStatus(p, now) }))
     .filter(({ status }) => status.active || status.startsIn !== undefined)
-    .sort((a, b) => Number(b.status.active) - Number(a.status.active));
+    .sort((a, b) => comparePromotions(a.promo, b.promo));
 }
 
 const promoTagText = (promo, status) =>
