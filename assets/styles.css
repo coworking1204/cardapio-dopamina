@@ -710,12 +710,15 @@ body {
   height: 40px;
   margin-top: -20px;
   border: 0;
-  border-radius: 50%;
-  background: rgb(26 6 46 / 0.55);
-  color: var(--white);
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  color: #111;
   font: inherit;
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   line-height: 1;
+  opacity: 0.72;
   cursor: pointer;
 }
 
@@ -776,11 +779,12 @@ body {
 }
 
 .photo-close {
-  width: 100%;
-  min-height: 44px;
-  margin-top: 16px;
+  display: block;
+  width: calc(100% - 16px);
+  min-height: 36px;
+  margin: 14px auto 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--gold);
   color: var(--plum-deep);
   font: inherit;
