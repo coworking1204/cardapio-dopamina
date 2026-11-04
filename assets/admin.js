@@ -5,6 +5,26 @@ import {
 } from './shared.js?v=202611021747';
 
 const $ = (id) => document.getElementById(id);
+const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const STORAGE_ORIGIN = 'https://zpwquzllpdqrpmwniupn.supabase.co';
+
+// Nunca coloca na página um endereço arbitrário vindo do DOM ou do banco.
+// As prévias aceitam apenas blobs criados neste site ou imagens do Storage do projeto.
+function safeImageUrl(value) {
+  const url = new URL(String(value), location.origin);
+  const localBlob = url.protocol === 'blob:' && url.origin === location.origin;
+  const projectImage = url.protocol === 'https:' && url.origin === STORAGE_ORIGIN;
+  if (!localBlob && !projectImage) throw new Error('Origem de imagem não permitida');
+  return url.href;
+}
+
+function validateImageFile(file) {
+  if (!(file instanceof Blob) || !SAFE_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Use uma imagem JPG, PNG ou WebP.');
+  }
+  if (file.size > MAX_IMAGE_BYTES) throw new Error('A imagem deve ter no máximo 15 MB.');
+}
 
 const views = {
   locked: $('locked-view'),
@@ -501,17 +521,26 @@ let promoImage = { file: null, remove: false }; // imagem pendente até salvar
 function showPromoImage(url) {
   const preview = $('promo-image-preview');
   preview.hidden = !url;
-  if (url) preview.src = url;
+  if (url) preview.src = safeImageUrl(url);
   else preview.removeAttribute('src');
   $('promo-image-remove').hidden = !url;
   $('promo-image-label').textContent = url ? 'Trocar imagem' : 'Escolher imagem';
 }
 
-$('promo-image-input').addEventListener('change', (event) => {
+$('promo-image-input').addEventListener('change', async (event) => {
   const file = event.target.files[0];
   if (!file) return;
-  promoImage = { file, remove: false };
-  showPromoImage(URL.createObjectURL(file));
+  try {
+    validateImageFile(file);
+    const safeFile = await shrinkImage(file, 2400, 0.92);
+    promoImage = { file: safeFile, remove: false };
+    showPromoImage(URL.createObjectURL(safeFile));
+  } catch (error) {
+    console.error(error);
+    toast(error.message || 'Não foi possível abrir a imagem.', true);
+  } finally {
+    event.target.value = '';
+  }
 });
 
 $('promo-image-remove').addEventListener('click', () => {
@@ -659,17 +688,24 @@ const PHOTO_BUCKET = 'menu-photos';
 function showPhoto(url) {
   const preview = $('photo-preview');
   preview.hidden = !url;
-  if (url) preview.src = url;
+  if (url) preview.src = safeImageUrl(url);
   else preview.removeAttribute('src');
   $('photo-remove').hidden = !url;
   $('photo-edit').hidden = !url;
   $('photo-pick-label').textContent = url ? 'Trocar foto' : 'Escolher foto';
 }
 
-$('photo-input').addEventListener('change', (event) => {
+$('photo-input').addEventListener('change', async (event) => {
   const file = event.target.files[0];
   event.target.value = '';
-  if (file) openCropper(file);
+  if (!file) return;
+  try {
+    validateImageFile(file);
+    await openCropper(await shrinkImage(file, 2400, 0.92));
+  } catch (error) {
+    console.error(error);
+    toast(error.message || 'Não foi possível abrir a imagem.', true);
+  }
 });
 
 $('photo-remove').addEventListener('click', () => {
@@ -710,7 +746,7 @@ async function openCropper(source) {
 
 async function loadCropImage(reset) {
   if (cropImg.src) URL.revokeObjectURL(cropImg.src);
-  cropImg.src = URL.createObjectURL(crop.source);
+  cropImg.src = safeImageUrl(URL.createObjectURL(crop.source));
   await cropImg.decode();
   crop.w = cropImg.naturalWidth;
   crop.h = cropImg.naturalHeight;
@@ -807,7 +843,7 @@ $('crop-bg').addEventListener('click', async () => {
       },
     });
     const img = new Image();
-    img.src = URL.createObjectURL(cutout);
+    img.src = safeImageUrl(URL.createObjectURL(cutout));
     await img.decode();
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth;
@@ -833,7 +869,7 @@ async function shrinkImage(file, max = 1200, quality = 0.82) {
   const url = URL.createObjectURL(file);
   try {
     const img = new Image();
-    img.src = url;
+    img.src = safeImageUrl(url);
     await img.decode();
     const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
     const canvas = document.createElement('canvas');
