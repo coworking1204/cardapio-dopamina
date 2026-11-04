@@ -1,4 +1,4 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/+esm';
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611021747';
 
 // Chave de edição: vem do link secreto (admin.html#chave=...) e fica guardada neste aparelho.
@@ -7,11 +7,23 @@ function readEditKey() {
   if (!document.body.classList.contains('admin-page')) return null;
   const fromLink = new URLSearchParams(location.hash.slice(1)).get('chave');
   try {
-    if (fromLink) localStorage.setItem('menu-edit-key', fromLink);
+    if (fromLink) {
+      localStorage.setItem('menu-edit-key', fromLink);
+      // Depois de salvar a chave neste aparelho, remove o segredo da barra de endereço.
+      // Isso evita vazamento acidental em capturas de tela ou ao copiar o endereço.
+      history.replaceState(null, '', `${location.pathname}${location.search}`);
+    }
     return fromLink || localStorage.getItem('menu-edit-key');
   } catch {
     return fromLink;
   }
+}
+
+export function clearEditKey() {
+  try {
+    localStorage.removeItem('menu-edit-key');
+  } catch {}
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
 }
 
 export const editKey = readEditKey();

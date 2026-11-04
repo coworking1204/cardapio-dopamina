@@ -70,10 +70,10 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
-    select 1 from public.menu_secret s
+    select 1 from public.menu_secret as s
     where s.key = (nullif(current_setting('request.headers', true), '')::json ->> 'x-menu-key')
   );
 $$;
@@ -84,10 +84,13 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select public.has_menu_key()
-    or exists (select 1 from public.menu_admins where user_id = auth.uid());
+    or exists (
+      select 1 from public.menu_admins
+      where user_id = (select auth.uid())
+    );
 $$;
 
 -- Qualquer mudança em abas/itens "carimba" menu_settings.updated_at.
@@ -97,10 +100,10 @@ create or replace function public.touch_menu()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
-  update public.menu_settings set updated_at = now() where id = 1;
+  update public.menu_settings set updated_at = pg_catalog.now() where id = 1;
   return null;
 end;
 $$;
@@ -149,27 +152,29 @@ create policy "settings_read" on public.menu_settings
 drop policy if exists "settings_admin_update" on public.menu_settings;
 create policy "settings_admin_update" on public.menu_settings
   for update to anon, authenticated
-  using (public.is_menu_admin()) with check (public.is_menu_admin());
+  using ((select public.is_menu_admin()))
+  with check ((select public.is_menu_admin()));
 
 drop policy if exists "admins_read_self" on public.menu_admins;
 create policy "admins_read_self" on public.menu_admins
-  for select to authenticated using (user_id = auth.uid());
+  for select to authenticated using (user_id = (select auth.uid()));
 
 drop policy if exists "categories_read" on public.menu_categories;
 create policy "categories_read" on public.menu_categories
   for select to anon, authenticated
-  using (visible or public.is_menu_admin());
+  using (visible or (select public.is_menu_admin()));
 
 drop policy if exists "categories_admin_write" on public.menu_categories;
 create policy "categories_admin_write" on public.menu_categories
   for all to anon, authenticated
-  using (public.is_menu_admin()) with check (public.is_menu_admin());
+  using ((select public.is_menu_admin()))
+  with check ((select public.is_menu_admin()));
 
 drop policy if exists "items_read" on public.menu_items;
 create policy "items_read" on public.menu_items
   for select to anon, authenticated
   using (
-    public.is_menu_admin()
+    (select public.is_menu_admin())
     or (
       visible
       and exists (
@@ -182,12 +187,15 @@ create policy "items_read" on public.menu_items
 drop policy if exists "items_admin_write" on public.menu_items;
 create policy "items_admin_write" on public.menu_items
   for all to anon, authenticated
-  using (public.is_menu_admin()) with check (public.is_menu_admin());
+  using ((select public.is_menu_admin()))
+  with check ((select public.is_menu_admin()));
 
 grant select on public.menu_settings, public.menu_categories, public.menu_items to anon, authenticated;
 grant update on public.menu_settings to anon, authenticated;
 grant insert, update, delete on public.menu_categories, public.menu_items to anon, authenticated;
 grant select on public.menu_admins to authenticated;
+revoke execute on function public.is_menu_admin() from public;
+revoke execute on function public.has_menu_key() from public;
 grant execute on function public.is_menu_admin() to anon, authenticated;
 grant execute on function public.has_menu_key() to anon, authenticated;
 -- Funções de gatilho não devem ser chamáveis pela API
@@ -250,23 +258,23 @@ on conflict (id) do nothing;
 drop policy if exists "menu_photos_select" on storage.objects;
 create policy "menu_photos_select" on storage.objects
   for select to anon, authenticated
-  using (bucket_id = 'menu-photos' and public.is_menu_admin());
+  using (bucket_id = 'menu-photos' and (select public.is_menu_admin()));
 
 drop policy if exists "menu_photos_insert" on storage.objects;
 create policy "menu_photos_insert" on storage.objects
   for insert to anon, authenticated
-  with check (bucket_id = 'menu-photos' and public.is_menu_admin());
+  with check (bucket_id = 'menu-photos' and (select public.is_menu_admin()));
 
 drop policy if exists "menu_photos_update" on storage.objects;
 create policy "menu_photos_update" on storage.objects
   for update to anon, authenticated
-  using (bucket_id = 'menu-photos' and public.is_menu_admin())
-  with check (bucket_id = 'menu-photos' and public.is_menu_admin());
+  using (bucket_id = 'menu-photos' and (select public.is_menu_admin()))
+  with check (bucket_id = 'menu-photos' and (select public.is_menu_admin()));
 
 drop policy if exists "menu_photos_delete" on storage.objects;
 create policy "menu_photos_delete" on storage.objects
   for delete to anon, authenticated
-  using (bucket_id = 'menu-photos' and public.is_menu_admin());
+  using (bucket_id = 'menu-photos' and (select public.is_menu_admin()));
 
 -- Promoções programadas (repetem toda semana; horários no fuso de Brasília)
 create table if not exists public.menu_promotions (
@@ -291,12 +299,13 @@ alter table public.menu_promotions enable row level security;
 drop policy if exists "promotions_read" on public.menu_promotions;
 create policy "promotions_read" on public.menu_promotions
   for select to anon, authenticated
-  using (active or public.is_menu_admin());
+  using (active or (select public.is_menu_admin()));
 
 drop policy if exists "promotions_admin_write" on public.menu_promotions;
 create policy "promotions_admin_write" on public.menu_promotions
   for all to anon, authenticated
-  using (public.is_menu_admin()) with check (public.is_menu_admin());
+  using ((select public.is_menu_admin()))
+  with check ((select public.is_menu_admin()));
 
 grant select, insert, update, delete on public.menu_promotions to anon, authenticated;
 

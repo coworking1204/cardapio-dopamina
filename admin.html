@@ -2,6 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; script-src-attr 'none'; connect-src 'self' https://zpwquzllpdqrpmwniupn.supabase.co wss://zpwquzllpdqrpmwniupn.supabase.co https://cdn.jsdelivr.net https://staticimgly.com; img-src 'self' data: blob: https://zpwquzllpdqrpmwniupn.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; media-src 'none'; upgrade-insecure-requests">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <meta name="robots" content="noindex,nofollow,noarchive">
@@ -10,14 +12,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/styles.css?v=202611021747">
-  <link rel="stylesheet" href="assets/admin.css?v=202611021747">
-  <script type="module" src="assets/admin.js?v=202611021747"></script>
+  <link rel="stylesheet" href="assets/admin.css?v=202611041800">
+  <script type="module" src="assets/admin.js?v=202611041800"></script>
 </head>
 <body class="admin-page">
   <header class="admin-bar">
     <strong>Editar cardápio</strong>
     <div class="admin-bar-actions">
-      <a class="btn btn-ghost" href="./" target="_blank" rel="noopener">Ver cardápio</a>
+      <a class="btn btn-ghost" href="./" target="_blank" rel="noopener" aria-label="Ver cardápio">Cardápio</a>
+      <button id="admin-logout" class="btn btn-ghost" type="button" hidden>Sair</button>
     </div>
   </header>
 

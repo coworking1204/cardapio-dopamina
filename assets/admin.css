@@ -14,6 +14,8 @@
 
 .admin-bar {
   display: flex;
+  width: 100vw;
+  box-sizing: border-box;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -27,6 +29,7 @@
 
 .admin-bar-actions {
   display: flex;
+  flex: none;
   gap: 6px;
 }
 

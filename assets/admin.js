@@ -1,4 +1,4 @@
-import { supabase, editKey } from './client.js?v=202611021747';
+import { supabase, editKey, clearEditKey } from './client.js?v=202611041800';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime,
@@ -37,8 +37,14 @@ async function start() {
     return;
   }
   show('editor');
+  $('admin-logout').hidden = false;
   await reload();
 }
+
+$('admin-logout').addEventListener('click', () => {
+  clearEditKey();
+  location.reload();
+});
 
 /* ---------- Dados ---------- */
 
