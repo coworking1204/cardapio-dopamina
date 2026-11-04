@@ -37,7 +37,12 @@ function show(menu) {
     .map((c) => ({
       ...c,
       slug: slugify(c.name),
-      items: items.filter((i) => i.category_id === c.id && i.visible).map((i) => withPromotions(i, running)),
+      items: items
+        .filter((i) => i.category_id === c.id && i.visible)
+        .map((i) => withPromotions(i, running))
+        // Esgotados vão para o fim somente na exibição. A posição salva continua intacta,
+        // então o item volta ao lugar original assim que ficar disponível novamente.
+        .sort((a, b) => Number(b.available) - Number(a.available) || a.position - b.position),
     }))
     .filter((c) => c.items.length > 0);
   renderHeader(settings);
