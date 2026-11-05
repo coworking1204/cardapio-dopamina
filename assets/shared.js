@@ -4,6 +4,7 @@ export const BADGES = {
   novo: 'Novo',
   mais_pedido: 'Mais pedido 🔥',
   promo: 'Promo',
+  em_breve: 'Em breve',
 };
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });

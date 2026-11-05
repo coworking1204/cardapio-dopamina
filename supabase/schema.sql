@@ -44,13 +44,18 @@ create table if not exists public.menu_items (
   image_url text,
   thumb_url text,
   promo_price numeric(10, 2) check (promo_price >= 0),
-  badge text check (badge in ('novo', 'mais_pedido', 'promo')),
+  badge text check (badge in ('novo', 'mais_pedido', 'promo', 'em_breve')),
   available boolean not null default true,
   visible boolean not null default true,
   position int not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Compatibilidade para bancos criados antes do selo "Em breve".
+alter table public.menu_items drop constraint if exists menu_items_badge_check;
+alter table public.menu_items add constraint menu_items_badge_check
+  check (badge in ('novo', 'mais_pedido', 'promo', 'em_breve'));
 
 create index if not exists menu_items_category_position_idx
   on public.menu_items (category_id, position);
