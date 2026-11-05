@@ -703,6 +703,19 @@ body {
   background: var(--plum);
 }
 
+.photo-disclaimer {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  z-index: 1;
+  color: #080808;
+  font-size: 0.55rem;
+  font-weight: 500;
+  line-height: 1;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+}
+
 .photo-img.slide-next {
   animation: slide-next 0.25s ease-out;
 }
