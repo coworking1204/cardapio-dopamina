@@ -2,7 +2,7 @@ import { supabase, editKey, clearEditKey } from './client.js?v=202611041800';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime, comparePromotions,
-} from './shared.js?v=202611230700';
+} from './shared.js?v=202611230800';
 
 const $ = (id) => document.getElementById(id);
 const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -295,8 +295,9 @@ function renderItemCard(item, index, list) {
 
   const category = state.categories.find((c) => c.id === item.category_id);
   const subcategory = state.subcategories.find((row) => row.id === item.subcategory_id);
-  const priceInput = makePriceInput(item, 'price', category?.price_label);
-  const price2Input = category?.price2_label ? makePriceInput(item, 'price2', category.price2_label) : null;
+  const hasTwoPrices = Boolean(category?.price2_label);
+  const priceInput = makePriceInput(item, 'price', category?.price_label, hasTwoPrices);
+  const price2Input = hasTwoPrices ? makePriceInput(item, 'price2', category.price2_label, true) : null;
   const hiddenPill = h('span', { class: 'pill', hidden: item.visible }, 'Oculto');
 
   const availability = h('input', {
@@ -373,8 +374,8 @@ function renderItemCard(item, index, list) {
 const plain = (value) => formatPrice(value).replace(/^R\$\s?/, '');
 
 // Campo de preço editável direto na lista. O segundo preço pode ficar vazio.
-function makePriceInput(item, key, label) {
-  const optional = key === 'price2';
+function makePriceInput(item, key, label, hasTwoPrices = false) {
+  const optional = key === 'price2' || hasTwoPrices;
   const input = h('input', {
     class: 'price-input',
     inputmode: 'decimal',
@@ -393,6 +394,12 @@ function makePriceInput(item, key, label) {
       if (value === null && !(empty && optional)) {
         restore();
         toast('Preço inválido. Use números, como 14,50.', true);
+        return;
+      }
+      const otherKey = key === 'price' ? 'price2' : 'price';
+      if (value === null && item[otherKey] === null) {
+        restore();
+        toast('Preencha pelo menos um dos dois preços.', true);
         return;
       }
       item[key] = value;
@@ -729,7 +736,7 @@ function renderPromoItems(selected) {
     h('label', { class: 'check' },
       h('input', { type: 'checkbox', value: item.id, checked: !selected || selected.includes(item.id) }),
       `${item.name} ${item.detail}`.trim(),
-      h('span', { class: 'muted small' }, ` ${formatPrice(item.price)}`),
+      h('span', { class: 'muted small' }, ` ${formatPrice(item.price ?? item.price2)}`),
     ),
   ));
 }
@@ -1081,7 +1088,7 @@ function openItem(item, categoryId) {
   f.name.value = item?.name ?? '';
   f.detail.value = item?.detail ?? '';
   f.description.value = item?.description ?? '';
-  f.price.value = item ? formatPrice(item.price).replace(/^R\$\s?/, '') : '';
+  f.price.value = item?.price !== null && item?.price !== undefined ? plain(item.price) : '';
   f.promo_price.value = item?.promo_price !== null && item?.promo_price !== undefined
     ? formatPrice(item.promo_price).replace(/^R\$\s?/, '')
     : '';
@@ -1103,8 +1110,11 @@ function openItem(item, categoryId) {
 function syncPriceLabels() {
   const f = itemForm.elements;
   const category = state.categories.find((c) => c.id === f.category_id.value);
+  const hasTwoPrices = Boolean(category?.price2_label);
   $('price-label').textContent = category?.price_label ? `${category.price_label} (R$)` : 'Preço (R$)';
-  $('price2-field').hidden = !category?.price2_label;
+  f.price.required = !hasTwoPrices;
+  f.price.placeholder = hasTwoPrices ? 'Opcional' : '0,00';
+  $('price2-field').hidden = !hasTwoPrices;
   $('price2-label').textContent = category?.price2_label ? `${category.price2_label} (R$)` : '';
 }
 
@@ -1139,10 +1149,14 @@ itemForm.addEventListener('submit', async (event) => {
   const promo_price = promoText ? parsePrice(promoText) : null;
   const price2Text = $('price2-field').hidden ? '' : f.price2.value.trim();
   const price2 = price2Text ? parsePrice(price2Text) : null;
-  if (price === null) return formError('Preço inválido. Use números, como 14,50.');
+  const hasTwoPrices = !$('price2-field').hidden;
+  if (priceText && price === null) return formError('Primeiro preço inválido. Use números, como 14,50.');
   if (price2Text && price2 === null) return formError('Segundo preço inválido. Deixe vazio se não tiver.');
+  if (!hasTwoPrices && price === null) return formError('Informe o preço do item.');
+  if (hasTwoPrices && price === null && price2 === null) return formError('Preencha pelo menos um dos dois preços.');
   if (promoText && promo_price === null) return formError('Preço promocional inválido. Deixe vazio para tirar a promoção.');
-  if (promo_price !== null && promo_price >= price) return formError('O preço promocional precisa ser menor que o preço normal.');
+  if (promo_price !== null && price === null) return formError('Para usar preço promocional, preencha o primeiro preço.');
+  if (promo_price !== null && promo_price >= price) return formError('O preço promocional precisa ser menor que o primeiro preço.');
 
   const row = {
     name: f.name.value.trim(),

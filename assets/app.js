@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime, comparePromotions,
-} from './shared.js?v=202611230700';
+} from './shared.js?v=202611230800';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -57,6 +57,7 @@ function show(menu) {
 
 // Aplica a promoção programada que estiver valendo agora (fica com o menor preço, se houver mais de uma).
 function withPromotions(item, running) {
+  if (item.price === null) return item;
   const scheduled = running.filter((p) => promotionAppliesTo(p, item));
   const prices = scheduled.map((p) => Number(p.price));
   if (item.promo_price !== null) prices.push(Number(item.promo_price));
@@ -449,6 +450,7 @@ function renderItem(item, section) {
 
 function itemPrice(item, money) {
   if (!item.available) return h('span', { class: 'price price-out' }, 'Esgotado');
+  if (item.price === null) return null;
   const promo = item.promo_price !== null && Number(item.promo_price) < Number(item.price);
   return h('span', { class: 'price' },
     promo ? h('s', { class: 'price-old' }, money(item.price)) : null,
@@ -484,7 +486,7 @@ function renderPhotoItem(item, section) {
   const twoPrices = Boolean(section.price2_label);
   const label = (text) => (twoPrices && text ? h('span', { class: 'price-label' }, text) : null);
   const first = itemPrice(item, formatPrice);
-  if (item.available) first.prepend(...[label(section.price_label)].filter(Boolean));
+  if (item.available && first) first.prepend(...[label(section.price_label)].filter(Boolean));
   const prices = [
     first,
     item.available && twoPrices && item.price2 !== null
@@ -503,7 +505,7 @@ function renderPhotoItem(item, section) {
         h('span', { class: 'item-title' }, item.name, badge(item)),
         item.detail ? h('span', { class: 'item-sub' }, item.detail) : null,
         item.description ? h('span', { class: 'item-desc' }, item.description) : null,
-        h('span', { class: 'item-prices' }, prices),
+        h('span', { class: 'item-prices' }, prices.filter(Boolean)),
       ),
       h('img', { class: 'item-photo', src: item.thumb_url || item.image_url, alt: '', loading: 'lazy', decoding: 'async' }),
     ),
@@ -539,11 +541,11 @@ function showPhoto(direction) {
     h('strong', {}, item.name),
     ...(item.detail ? [h('span', { class: 'item-detail' }, ` ${item.detail}`)] : []),
   );
-  const promo = item.promo_price !== null && Number(item.promo_price) < Number(item.price);
+  const promo = item.price !== null && item.promo_price !== null && Number(item.promo_price) < Number(item.price);
   document.getElementById('photo-price').textContent = !item.available
     ? 'Esgotado'
     : [
-        `${twoPrices && section.price_label ? `${section.price_label}: ` : ''}${formatPrice(promo ? item.promo_price : item.price)}`,
+        item.price !== null ? `${twoPrices && section.price_label ? `${section.price_label}: ` : ''}${formatPrice(promo ? item.promo_price : item.price)}` : null,
         twoPrices && item.price2 !== null ? `${section.price2_label}: ${formatPrice(item.price2)}` : null,
       ].filter(Boolean).join(' · ');
   const desc = document.getElementById('photo-desc');

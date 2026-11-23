@@ -53,7 +53,7 @@ create table if not exists public.menu_items (
   name text not null check (length(trim(name)) > 0),
   detail text not null default '',
   description text not null default '',
-  price numeric(10, 2) not null default 0 check (price >= 0),
+  price numeric(10, 2) check (price >= 0),
   price2 numeric(10, 2) check (price2 >= 0),
   image_url text,
   thumb_url text,
@@ -63,7 +63,8 @@ create table if not exists public.menu_items (
   visible boolean not null default true,
   position int not null default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint menu_items_has_price check (price is not null or price2 is not null)
 );
 
 -- Compatibilidade para bancos criados antes das subdivisões.
