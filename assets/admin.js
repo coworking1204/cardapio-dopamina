@@ -2,7 +2,7 @@ import { supabase, editKey, clearEditKey } from './client.js?v=202611041800';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime, comparePromotions,
-} from './shared.js?v=202611230800';
+} from './shared.js?v=202611230900';
 
 const $ = (id) => document.getElementById(id);
 const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -36,6 +36,7 @@ const state = {
   categories: [],
   subcategories: [],
   items: [],
+  addons: [],
   promotions: [],
   view: null, // id de uma aba, 'abas' ou 'avisos'
 };
@@ -105,6 +106,12 @@ function categoriesSorted() {
 function subcategoriesOf(categoryId) {
   return state.subcategories
     .filter((subcategory) => subcategory.category_id === categoryId)
+    .sort((a, b) => a.position - b.position);
+}
+
+function addonsOf(itemId) {
+  return state.addons
+    .filter((addon) => addon.menu_item_id === itemId)
     .sort((a, b) => a.position - b.position);
 }
 
@@ -295,6 +302,7 @@ function renderItemCard(item, index, list) {
 
   const category = state.categories.find((c) => c.id === item.category_id);
   const subcategory = state.subcategories.find((row) => row.id === item.subcategory_id);
+  const addonCount = addonsOf(item.id).length;
   const hasTwoPrices = Boolean(category?.price2_label);
   const priceInput = makePriceInput(item, 'price', category?.price_label, hasTwoPrices);
   const price2Input = hasTwoPrices ? makePriceInput(item, 'price2', category.price2_label, true) : null;
@@ -346,6 +354,7 @@ function renderItemCard(item, index, list) {
         item.detail ? h('span', {}, ` ${item.detail}`) : null,
         h('span', { class: 'card-tags' },
           subcategory ? h('span', { class: 'pill pill-subcategory' }, subcategory.name) : null,
+          addonCount ? h('span', { class: 'pill' }, `${addonCount} ${addonCount === 1 ? 'adicional' : 'adicionais'}`) : null,
           item.badge ? h('span', { class: 'pill' }, BADGES[item.badge]) : null,
           promo ? h('span', { class: 'pill' }, `Promo ${formatPrice(item.promo_price)}`) : null,
           hiddenPill,
@@ -847,8 +856,105 @@ const dialog = $('item-dialog');
 const itemForm = $('item-form');
 let editing = null; // item existente, ou null para novo
 let photo = { file: null, remove: false }; // mudança de foto pendente até salvar
+let addonDraft = [];
 
 const PHOTO_BUCKET = 'menu-photos';
+
+function addonPriceLabel(key) {
+  const category = state.categories.find((row) => row.id === itemForm.elements.category_id.value);
+  if (key === 'price') return category?.price_label || 'Individual';
+  return category?.price2_label || 'Inteira';
+}
+
+function renderAddonFields() {
+  const container = $('addon-fields');
+  container.replaceChildren(...addonDraft.map((addon, index) => h('div', { class: 'addon-field-card' },
+    h('label', { class: 'field addon-name' }, 'Nome',
+      h('input', {
+        value: addon.name,
+        placeholder: 'Ex.: cheddar e bacon',
+        oninput: (event) => (addon.name = event.target.value),
+      })),
+    h('div', { class: 'addon-price-row' },
+      h('label', { class: 'field' }, addonPriceLabel('price'),
+        h('input', {
+          inputmode: 'decimal',
+          value: addon.price,
+          placeholder: 'Opcional',
+          oninput: (event) => (addon.price = event.target.value),
+        })),
+      h('label', { class: 'field' }, addonPriceLabel('price2'),
+        h('input', {
+          inputmode: 'decimal',
+          value: addon.price2,
+          placeholder: 'Opcional',
+          oninput: (event) => (addon.price2 = event.target.value),
+        })),
+      h('button', {
+        type: 'button',
+        class: 'icon-btn addon-remove',
+        'aria-label': `Remover ${addon.name || `item adicional ${index + 1}`}`,
+        onclick: () => {
+          addonDraft.splice(index, 1);
+          renderAddonFields();
+        },
+      }, '×'),
+    ),
+  )));
+}
+
+$('addon-add').addEventListener('click', () => {
+  addonDraft.push({ id: crypto.randomUUID(), name: '', price: '', price2: '' });
+  renderAddonFields();
+  $('addon-fields').lastElementChild?.querySelector('input')?.focus();
+});
+
+function validatedAddons() {
+  const rows = [];
+  for (let index = 0; index < addonDraft.length; index += 1) {
+    const draft = addonDraft[index];
+    const name = draft.name.trim();
+    const priceText = String(draft.price).trim();
+    const price2Text = String(draft.price2).trim();
+    const price = priceText ? parsePrice(priceText) : null;
+    const price2 = price2Text ? parsePrice(price2Text) : null;
+    if (!name) throw new Error(`Dê um nome ao item adicional ${index + 1}.`);
+    if (priceText && price === null) throw new Error(`O primeiro preço de “${name}” é inválido.`);
+    if (price2Text && price2 === null) throw new Error(`O segundo preço de “${name}” é inválido.`);
+    if (price === null && price2 === null) throw new Error(`Preencha pelo menos um preço de “${name}”.`);
+    rows.push({
+      id: draft.id,
+      name,
+      price,
+      price2,
+      position: index,
+      visible: true,
+      available: true,
+    });
+  }
+  return rows;
+}
+
+async function saveAddons(item, rows) {
+  const previous = addonsOf(item.id);
+  const nextIds = new Set(rows.map((row) => row.id));
+  const removed = previous.filter((row) => !nextIds.has(row.id)).map((row) => row.id);
+  if (removed.length) {
+    const { error } = await supabase.from('menu_item_addons').delete().in('id', removed);
+    if (error) throw error;
+  }
+  let saved = [];
+  if (rows.length) {
+    const payload = rows.map((row) => ({ ...row, menu_item_id: item.id }));
+    const { data, error } = await supabase.from('menu_item_addons').upsert(payload).select();
+    if (error) throw error;
+    saved = data;
+  }
+  state.addons = [
+    ...state.addons.filter((row) => row.menu_item_id !== item.id),
+    ...saved,
+  ];
+}
 
 function showPhoto(url) {
   const preview = $('photo-preview');
@@ -1095,7 +1201,14 @@ function openItem(item, categoryId) {
   f.price2.value = item?.price2 !== null && item?.price2 !== undefined ? plain(item.price2) : '';
   f.badge.value = item?.badge ?? '';
   f.category_id.value = item?.category_id ?? categoryId;
+  addonDraft = item ? addonsOf(item.id).map((addon) => ({
+    id: addon.id,
+    name: addon.name,
+    price: addon.price === null ? '' : plain(addon.price),
+    price2: addon.price2 === null ? '' : plain(addon.price2),
+  })) : [];
   syncItemCategory(item?.subcategory_id ?? '');
+  renderAddonFields();
   f.available.checked = item?.available ?? true;
   f.visible.checked = item?.visible ?? true;
   photo = { file: null, remove: false };
@@ -1128,6 +1241,7 @@ function syncItemCategory(selectedSubcategory = '') {
   ];
   f.subcategory_id.replaceChildren(...options);
   f.subcategory_id.value = options.some((option) => option.value === selectedSubcategory) ? selectedSubcategory : '';
+  renderAddonFields();
 }
 
 itemForm.elements.category_id.addEventListener('change', () => syncItemCategory(''));
@@ -1144,7 +1258,8 @@ function formError(message) {
 itemForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const f = itemForm.elements;
-  const price = parsePrice(f.price.value);
+  const priceText = f.price.value.trim();
+  const price = priceText ? parsePrice(priceText) : null;
   const promoText = f.promo_price.value.trim();
   const promo_price = promoText ? parsePrice(promoText) : null;
   const price2Text = $('price2-field').hidden ? '' : f.price2.value.trim();
@@ -1157,6 +1272,12 @@ itemForm.addEventListener('submit', async (event) => {
   if (promoText && promo_price === null) return formError('Preço promocional inválido. Deixe vazio para tirar a promoção.');
   if (promo_price !== null && price === null) return formError('Para usar preço promocional, preencha o primeiro preço.');
   if (promo_price !== null && promo_price >= price) return formError('O preço promocional precisa ser menor que o primeiro preço.');
+  let addons;
+  try {
+    addons = validatedAddons();
+  } catch (error) {
+    return formError(error.message);
+  }
 
   const row = {
     name: f.name.value.trim(),
@@ -1192,12 +1313,13 @@ itemForm.addEventListener('submit', async (event) => {
   editing = saved;
   submitButton.disabled = true;
   try {
+    await saveAddons(saved, addons);
     await savePhoto(saved);
-  } catch (photoError) {
-    console.error(photoError);
+  } catch (saveError) {
+    console.error(saveError);
     submitButton.disabled = false;
     render();
-    return formError('O item foi salvo, mas a foto não. Tente enviar a foto de novo.');
+    return formError('O item foi salvo, mas os adicionais ou a foto não. Tente salvar de novo.');
   }
   submitButton.disabled = false;
   dialog.close();
@@ -1217,6 +1339,7 @@ $('item-delete').addEventListener('click', async () => {
   const oldPaths = [photoPath(editing.image_url), photoPath(editing.thumb_url)].filter(Boolean);
   if (oldPaths.length) await supabase.storage.from(PHOTO_BUCKET).remove(oldPaths);
   state.items = state.items.filter((i) => i.id !== editing.id);
+  state.addons = state.addons.filter((addon) => addon.menu_item_id !== editing.id);
   dialog.close();
   toast('Item excluído');
   render();

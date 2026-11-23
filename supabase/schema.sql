@@ -95,6 +95,24 @@ create index if not exists menu_items_subcategory_id_idx
   on public.menu_items (subcategory_id)
   where subcategory_id is not null;
 
+-- Itens adicionais ligados diretamente a um produto (ex.: cheddar e bacon na batata).
+create table if not exists public.menu_item_addons (
+  id uuid primary key default gen_random_uuid(),
+  menu_item_id uuid not null references public.menu_items (id) on delete cascade,
+  name text not null check (length(trim(name)) > 0),
+  price numeric(10, 2) check (price >= 0),
+  price2 numeric(10, 2) check (price2 >= 0),
+  position int not null default 0,
+  visible boolean not null default true,
+  available boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint menu_item_addons_has_price check (price is not null or price2 is not null)
+);
+
+create index if not exists menu_item_addons_item_position_idx
+  on public.menu_item_addons (menu_item_id, position, created_at);
+
 -- Chave do link secreto de edição (admin.html#chave=...). Ninguém lê esta tabela pela API.
 create table if not exists public.menu_secret (
   id int primary key default 1 check (id = 1),
@@ -184,12 +202,23 @@ create trigger menu_subcategories_touch
   after insert or update or delete on public.menu_subcategories
   for each statement execute function public.touch_menu();
 
+drop trigger if exists menu_item_addons_updated_at on public.menu_item_addons;
+create trigger menu_item_addons_updated_at
+  before update on public.menu_item_addons
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists menu_item_addons_touch on public.menu_item_addons;
+create trigger menu_item_addons_touch
+  after insert or update or delete on public.menu_item_addons
+  for each statement execute function public.touch_menu();
+
 -- Segurança (RLS): o público só lê o que está visível; só admins editam
 alter table public.menu_settings enable row level security;
 alter table public.menu_admins enable row level security;
 alter table public.menu_categories enable row level security;
 alter table public.menu_subcategories enable row level security;
 alter table public.menu_items enable row level security;
+alter table public.menu_item_addons enable row level security;
 
 drop policy if exists "settings_read" on public.menu_settings;
 create policy "settings_read" on public.menu_settings
@@ -275,10 +304,54 @@ create policy "items_admin_write" on public.menu_items
   using ((select public.is_menu_admin()))
   with check ((select public.is_menu_admin()));
 
-grant select on public.menu_settings, public.menu_categories, public.menu_subcategories, public.menu_items to anon, authenticated;
+drop policy if exists "addons_read" on public.menu_item_addons;
+create policy "addons_read" on public.menu_item_addons
+  for select to anon, authenticated
+  using (
+    (select public.is_menu_admin())
+    or (
+      visible
+      and exists (
+        select 1
+        from public.menu_items i
+        join public.menu_categories c on c.id = i.category_id
+        where i.id = menu_item_id
+          and i.visible
+          and c.visible
+          and (
+            i.subcategory_id is null
+            or exists (
+              select 1 from public.menu_subcategories s
+              where s.id = i.subcategory_id
+                and s.category_id = i.category_id
+                and s.visible
+            )
+          )
+      )
+    )
+  );
+
+drop policy if exists "addons_admin_insert" on public.menu_item_addons;
+create policy "addons_admin_insert" on public.menu_item_addons
+  for insert to anon, authenticated
+  with check ((select public.is_menu_admin()));
+
+drop policy if exists "addons_admin_update" on public.menu_item_addons;
+create policy "addons_admin_update" on public.menu_item_addons
+  for update to anon, authenticated
+  using ((select public.is_menu_admin()))
+  with check ((select public.is_menu_admin()));
+
+drop policy if exists "addons_admin_delete" on public.menu_item_addons;
+create policy "addons_admin_delete" on public.menu_item_addons
+  for delete to anon, authenticated
+  using ((select public.is_menu_admin()));
+
+grant select on public.menu_settings, public.menu_categories, public.menu_subcategories, public.menu_items, public.menu_item_addons to anon, authenticated;
 grant update on public.menu_settings to anon, authenticated;
 grant insert, update, delete on public.menu_categories, public.menu_items to anon, authenticated;
 grant insert, update, delete on public.menu_subcategories to anon, authenticated;
+grant insert, update, delete on public.menu_item_addons to anon, authenticated;
 grant select on public.menu_admins to authenticated;
 revoke execute on function public.is_menu_admin() from public;
 revoke execute on function public.has_menu_key() from public;

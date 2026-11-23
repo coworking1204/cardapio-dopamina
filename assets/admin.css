@@ -491,6 +491,66 @@ legend {
   gap: 10px;
 }
 
+.addons-editor {
+  padding: 12px;
+  border: 1px solid var(--plum-line);
+  border-radius: 12px;
+}
+
+.addons-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.addons-editor h3,
+.addons-editor p {
+  margin: 0;
+}
+
+.addons-editor h3 {
+  color: var(--gold);
+  font-size: 0.86rem;
+}
+
+.addons-editor p {
+  margin-top: 2px;
+  color: var(--lilac);
+  font-size: 0.68rem;
+}
+
+.addon-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.addon-fields:empty {
+  margin-top: 0;
+}
+
+.addon-field-card {
+  padding-top: 10px;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.addon-price-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
+  align-items: end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.addon-remove {
+  width: 36px;
+  height: 42px;
+  color: var(--lilac);
+  font-size: 1.2rem;
+}
+
 .check {
   display: flex;
   align-items: center;

@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime, comparePromotions,
-} from './shared.js?v=202611230800';
+} from './shared.js?v=202611230900';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -461,6 +461,27 @@ function badge(item) {
   return item.badge && BADGES[item.badge] ? h('span', { class: `badge badge-${item.badge}` }, BADGES[item.badge]) : null;
 }
 
+function renderAddons(item, section) {
+  const addons = (currentMenu.addons ?? [])
+    .filter((addon) => addon.menu_item_id === item.id)
+    .sort((a, b) => a.position - b.position);
+  if (!addons.length) return null;
+  const twoPrices = Boolean(section.price2_label);
+  const compactPrice = (value) => value === null ? '' : formatPrice(value).replace(/^R\$\s?/, '');
+  return h('div', { class: 'item-addons' },
+    h('span', { class: 'item-addons-title' }, 'Adicionais'),
+    h('ul', { class: 'item-addons-list' }, addons.map((addon) => h('li', {
+      class: `item-addon-line${twoPrices ? ' has-two-prices' : ''}${addon.available ? '' : ' is-out'}`,
+    },
+      h('span', { class: 'item-addon-name' }, addon.name),
+      addon.available
+        ? h('span', { class: 'price' }, twoPrices ? compactPrice(addon.price) : formatPrice(addon.price ?? addon.price2))
+        : h('span', { class: 'price price-out' }, 'Esgotado'),
+      twoPrices ? h('span', { class: 'price' }, addon.available ? compactPrice(addon.price2) : '') : null,
+    ))),
+  );
+}
+
 // Sem foto: nome à esquerda e preço à direita, numa linha só (layout clássico).
 function renderPlainItem(item, section) {
   const twoPrices = Boolean(section.price2_label);
@@ -478,6 +499,7 @@ function renderPlainItem(item, section) {
         : null,
     ),
     item.description ? h('p', { class: 'item-desc' }, item.description) : null,
+    renderAddons(item, section),
   );
 }
 
@@ -509,6 +531,7 @@ function renderPhotoItem(item, section) {
       ),
       h('img', { class: 'item-photo', src: item.thumb_url || item.image_url, alt: '', loading: 'lazy', decoding: 'async' }),
     ),
+    renderAddons(item, section),
   );
 }
 
