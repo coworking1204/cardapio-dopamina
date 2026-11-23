@@ -2,7 +2,7 @@ import { supabase, editKey, clearEditKey } from './client.js?v=202611041800';
 import {
   fetchMenu, formatPrice, parsePrice, h, BADGES,
   WEEKDAYS, barNow, promotionStatus, formatTime, comparePromotions,
-} from './shared.js?v=202611042130';
+} from './shared.js?v=202611230700';
 
 const $ = (id) => document.getElementById(id);
 const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -34,6 +34,7 @@ const views = {
 const state = {
   settings: {},
   categories: [],
+  subcategories: [],
   items: [],
   promotions: [],
   view: null, // id de uma aba, 'abas' ou 'avisos'
@@ -101,6 +102,12 @@ function categoriesSorted() {
   return [...state.categories].sort((a, b) => a.position - b.position);
 }
 
+function subcategoriesOf(categoryId) {
+  return state.subcategories
+    .filter((subcategory) => subcategory.category_id === categoryId)
+    .sort((a, b) => a.position - b.position);
+}
+
 // Troca de lugar com o vizinho e renumera a lista inteira.
 async function move(table, list, index, delta) {
   const target = index + delta;
@@ -165,6 +172,7 @@ function renderCategoryView(category) {
       h('h1', {}, category.name),
       category.visible ? null : h('span', { class: 'pill' }, 'Aba oculta'),
     ),
+    renderSubcategories(category),
     list.length
       ? h('ul', { class: 'cards' }, list.map((item, index) => renderItemCard(item, index, list)))
       : h('p', { class: 'muted' }, 'Nenhum item nesta aba. Abas vazias não aparecem para o cliente.'),
@@ -172,10 +180,121 @@ function renderCategoryView(category) {
   );
 }
 
+function renderSubcategories(category) {
+  const list = subcategoriesOf(category.id);
+  const addForm = h('form', {
+    class: 'add-row',
+    onsubmit: async (event) => {
+      event.preventDefault();
+      const name = event.target.elements.name.value.trim();
+      if (!name) return;
+      const position = list.length ? Math.max(...list.map((subcategory) => subcategory.position)) + 1 : 0;
+      const { data, error } = await supabase
+        .from('menu_subcategories')
+        .insert({ category_id: category.id, name, position })
+        .select()
+        .single();
+      if (error) {
+        console.error(error);
+        toast('Não foi possível criar a subdivisão.', true);
+        return;
+      }
+      state.subcategories.push(data);
+      toast(`Subdivisão "${name}" criada`);
+      render();
+    },
+  },
+    h('input', { name: 'name', placeholder: 'Ex.: Molhos ou Acompanhamentos', required: true, 'aria-label': 'Nome da subdivisão' }),
+    h('button', { type: 'submit', class: 'btn btn-gold' }, 'Adicionar'),
+  );
+
+  return h('section', { class: 'card-plain stack subcategory-editor' },
+    h('div', { class: 'subheading-row' },
+      h('div', {},
+        h('h2', {}, 'Subdivisões'),
+        h('p', { class: 'muted small' }, 'Opcional. Use para separar os itens desta aba em grupos.'),
+      ),
+    ),
+    list.length
+      ? h('ul', { class: 'cards subcategory-cards' }, ...list.map((subcategory, index) => {
+        const count = state.items.filter((item) => item.subcategory_id === subcategory.id).length;
+        return h('li', { class: `card subcategory-card${subcategory.visible ? '' : ' is-hidden'}` },
+          h('input', {
+            class: 'name-input',
+            value: subcategory.name,
+            'aria-label': 'Nome da subdivisão',
+            onkeydown: (event) => {
+              if (event.key === 'Enter') event.target.blur();
+            },
+            onchange: async (event) => {
+              const name = event.target.value.trim();
+              if (!name) {
+                event.target.value = subcategory.name;
+                return;
+              }
+              if (await update('menu_subcategories', subcategory.id, { name })) {
+                subcategory.name = name;
+                toast('Nome da subdivisão salvo');
+              } else event.target.value = subcategory.name;
+            },
+          }),
+          h('div', { class: 'card-actions' },
+            h('label', { class: 'switch' },
+              h('input', {
+                type: 'checkbox',
+                checked: subcategory.visible,
+                onchange: async (event) => {
+                  const visible = event.target.checked;
+                  if (await update('menu_subcategories', subcategory.id, { visible })) {
+                    subcategory.visible = visible;
+                    toast(visible ? `"${subcategory.name}" visível` : `"${subcategory.name}" oculta`);
+                    render();
+                  } else event.target.checked = !visible;
+                },
+              }),
+              h('span', { class: 'switch-track', 'aria-hidden': 'true' }),
+              'Visível',
+            ),
+            h('span', { class: 'muted small' }, `${count} ${count === 1 ? 'item' : 'itens'}`),
+            h('span', { class: 'spacer' }),
+            h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Subir subdivisão', disabled: index === 0, onclick: () => move('menu_subcategories', list, index, -1) }, '↑'),
+            h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Descer subdivisão', disabled: index === list.length - 1, onclick: () => move('menu_subcategories', list, index, 1) }, '↓'),
+            h('button', {
+              type: 'button',
+              class: 'icon-btn icon-danger',
+              'aria-label': `Excluir subdivisão ${subcategory.name}`,
+              onclick: async () => {
+                const warning = count
+                  ? `Excluir a subdivisão "${subcategory.name}"? Os ${count} itens continuarão no cardápio, sem subdivisão.`
+                  : `Excluir a subdivisão "${subcategory.name}"?`;
+                if (!confirm(warning)) return;
+                const { error } = await supabase.from('menu_subcategories').delete().eq('id', subcategory.id);
+                if (error) {
+                  console.error(error);
+                  toast('Não foi possível excluir a subdivisão.', true);
+                  return;
+                }
+                state.subcategories = state.subcategories.filter((row) => row.id !== subcategory.id);
+                state.items.forEach((item) => {
+                  if (item.subcategory_id === subcategory.id) item.subcategory_id = null;
+                });
+                toast('Subdivisão excluída');
+                render();
+              },
+            }, '✕'),
+          ),
+        );
+      }))
+      : h('p', { class: 'muted small' }, 'Nenhuma subdivisão criada nesta aba.'),
+    addForm,
+  );
+}
+
 function renderItemCard(item, index, list) {
   const card = h('li', { class: `card${item.available ? '' : ' is-out'}${item.visible ? '' : ' is-hidden'}` });
 
   const category = state.categories.find((c) => c.id === item.category_id);
+  const subcategory = state.subcategories.find((row) => row.id === item.subcategory_id);
   const priceInput = makePriceInput(item, 'price', category?.price_label);
   const price2Input = category?.price2_label ? makePriceInput(item, 'price2', category.price2_label) : null;
   const hiddenPill = h('span', { class: 'pill', hidden: item.visible }, 'Oculto');
@@ -225,6 +344,7 @@ function renderItemCard(item, index, list) {
         h('strong', {}, item.name),
         item.detail ? h('span', {}, ` ${item.detail}`) : null,
         h('span', { class: 'card-tags' },
+          subcategory ? h('span', { class: 'pill pill-subcategory' }, subcategory.name) : null,
           item.badge ? h('span', { class: 'pill' }, BADGES[item.badge]) : null,
           promo ? h('span', { class: 'pill' }, `Promo ${formatPrice(item.promo_price)}`) : null,
           hiddenPill,
@@ -968,7 +1088,7 @@ function openItem(item, categoryId) {
   f.price2.value = item?.price2 !== null && item?.price2 !== undefined ? plain(item.price2) : '';
   f.badge.value = item?.badge ?? '';
   f.category_id.value = item?.category_id ?? categoryId;
-  syncPriceLabels();
+  syncItemCategory(item?.subcategory_id ?? '');
   f.available.checked = item?.available ?? true;
   f.visible.checked = item?.visible ?? true;
   photo = { file: null, remove: false };
@@ -988,7 +1108,19 @@ function syncPriceLabels() {
   $('price2-label').textContent = category?.price2_label ? `${category.price2_label} (R$)` : '';
 }
 
-itemForm.elements.category_id.addEventListener('change', syncPriceLabels);
+function syncItemCategory(selectedSubcategory = '') {
+  syncPriceLabels();
+  const f = itemForm.elements;
+  const options = [
+    h('option', { value: '' }, 'Sem subdivisão'),
+    ...subcategoriesOf(f.category_id.value).map((subcategory) =>
+      h('option', { value: subcategory.id }, subcategory.name)),
+  ];
+  f.subcategory_id.replaceChildren(...options);
+  f.subcategory_id.value = options.some((option) => option.value === selectedSubcategory) ? selectedSubcategory : '';
+}
+
+itemForm.elements.category_id.addEventListener('change', () => syncItemCategory(''));
 
 const submitButton = itemForm.querySelector('button[type="submit"]');
 
@@ -1021,6 +1153,7 @@ itemForm.addEventListener('submit', async (event) => {
     promo_price,
     badge: f.badge.value || null,
     category_id: f.category_id.value,
+    subcategory_id: f.subcategory_id.value || null,
     available: f.available.checked,
     visible: f.visible.checked,
   };

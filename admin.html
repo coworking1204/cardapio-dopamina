@@ -11,9 +11,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=202611021747">
-  <link rel="stylesheet" href="assets/admin.css?v=202611041800">
-  <script type="module" src="assets/admin.js?v=202611042130"></script>
+  <link rel="stylesheet" href="assets/styles.css?v=202611230700">
+  <link rel="stylesheet" href="assets/admin.css?v=202611230700">
+  <script type="module" src="assets/admin.js?v=202611230700"></script>
 </head>
 <body class="admin-page">
   <header class="admin-bar">
@@ -104,6 +104,11 @@
           <select name="category_id"></select>
         </label>
       </div>
+      <label class="field">Subdivisão (opcional)
+        <select name="subcategory_id">
+          <option value="">Sem subdivisão</option>
+        </select>
+      </label>
       <label class="check"><input name="available" type="checkbox"> Disponível (desmarcado aparece como esgotado)</label>
       <label class="check"><input name="visible" type="checkbox"> Mostrar no cardápio</label>
       <p id="item-error" class="form-error" role="alert" hidden></p>

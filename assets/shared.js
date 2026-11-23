@@ -58,13 +58,14 @@ export async function fetchMenu(headers = {}) {
     if (!response.ok) throw new Error(`Falha ao carregar ${path}: ${response.status}`);
     return response.json();
   };
-  const [settings, categories, items, promotions] = await Promise.all([
+  const [settings, categories, subcategories, items, promotions] = await Promise.all([
     get('menu_settings?select=*&id=eq.1'),
     get('menu_categories?select=*&order=position.asc,created_at.asc'),
+    get('menu_subcategories?select=*&order=position.asc,created_at.asc'),
     get('menu_items?select=*&order=position.asc,created_at.asc'),
     get('menu_promotions?select=*&order=created_at.asc'),
   ]);
-  return { settings: settings[0] ?? {}, categories, items, promotions: promotions.sort(comparePromotions) };
+  return { settings: settings[0] ?? {}, categories, subcategories, items, promotions: promotions.sort(comparePromotions) };
 }
 
 /* ---------- Promoções programadas (sempre no horário de Brasília) ---------- */

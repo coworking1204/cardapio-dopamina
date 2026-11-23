@@ -1,7 +1,7 @@
 import {
   fetchMenu, formatPrice, slugify, h, BADGES,
   barNow, promotionStatus, promotionAppliesTo, formatCountdown, formatTime, comparePromotions,
-} from './shared.js?v=202611042130';
+} from './shared.js?v=202611230700';
 
 const els = {
   barName: document.getElementById('bar-name'),
@@ -27,7 +27,7 @@ let activePromoKey = '';
 
 function show(menu) {
   currentMenu = menu;
-  const { settings, categories, items } = menu;
+  const { settings, categories, subcategories = [], items } = menu;
   const now = barNow();
   const running = (menu.promotions ?? []).filter((p) => promotionStatus(p, now).active);
   activePromoKey = running.map((p) => p.id).join();
@@ -37,6 +37,9 @@ function show(menu) {
     .map((c) => ({
       ...c,
       slug: slugify(c.name),
+      subcategories: subcategories
+        .filter((s) => s.category_id === c.id && s.visible)
+        .sort((a, b) => a.position - b.position),
       items: items
         .filter((i) => i.category_id === c.id && i.visible)
         .map((i) => withPromotions(i, running))
@@ -418,6 +421,14 @@ function renderPanel(animate = false) {
   }
   // Em abas com dois preços, os itens sem foto usam colunas; o cabeçalho das colunas só aparece se houver algum.
   const columns = section.price2_label && section.items.some((i) => !i.image_url);
+  const ungrouped = section.items.filter((item) => !item.subcategory_id);
+  const groups = [
+    ungrouped.length ? { id: null, name: '', items: ungrouped } : null,
+    ...section.subcategories.map((subcategory) => ({
+      ...subcategory,
+      items: section.items.filter((item) => item.subcategory_id === subcategory.id),
+    })),
+  ].filter((group) => group?.items.length);
   els.panel.replaceChildren(...[
     h('h2', { class: 'section-title' }, section.name),
     columns
@@ -425,7 +436,10 @@ function renderPanel(animate = false) {
           h('span', { class: 'price-head-label' }, section.price_label || 'R$'),
           h('span', { class: 'price-head-label' }, section.price2_label))
       : null,
-    h('ul', { class: animate ? 'items is-entering' : 'items' }, section.items.map((item) => renderItem(item, section))),
+    ...groups.map((group) => h('section', { class: `menu-subsection${group.name ? '' : ' is-ungrouped'}` },
+      group.name ? h('h3', { class: 'subsection-title' }, group.name) : null,
+      h('ul', { class: animate ? 'items is-entering' : 'items' }, group.items.map((item) => renderItem(item, section))),
+    )),
   ].filter(Boolean));
 }
 

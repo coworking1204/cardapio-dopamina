@@ -33,9 +33,23 @@ create table if not exists public.menu_categories (
   created_at timestamptz not null default now()
 );
 
+-- Subdivisões opcionais dentro de cada aba (ex.: Molhos, Acompanhamentos)
+create table if not exists public.menu_subcategories (
+  id uuid primary key default gen_random_uuid(),
+  category_id uuid not null references public.menu_categories (id) on delete cascade,
+  name text not null check (length(trim(name)) > 0),
+  position int not null default 0,
+  visible boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists menu_subcategories_category_position_idx
+  on public.menu_subcategories (category_id, position, created_at);
+
 create table if not exists public.menu_items (
   id uuid primary key default gen_random_uuid(),
   category_id uuid not null references public.menu_categories (id) on delete cascade,
+  subcategory_id uuid references public.menu_subcategories (id) on delete set null,
   name text not null check (length(trim(name)) > 0),
   detail text not null default '',
   description text not null default '',
@@ -52,6 +66,22 @@ create table if not exists public.menu_items (
   updated_at timestamptz not null default now()
 );
 
+-- Compatibilidade para bancos criados antes das subdivisões.
+alter table public.menu_items add column if not exists subcategory_id uuid;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'menu_items_subcategory_id_fkey'
+      and conrelid = 'public.menu_items'::regclass
+  ) then
+    alter table public.menu_items
+      add constraint menu_items_subcategory_id_fkey
+      foreign key (subcategory_id) references public.menu_subcategories (id) on delete set null;
+  end if;
+end;
+$$;
+
 -- Compatibilidade para bancos criados antes do selo "Em breve".
 alter table public.menu_items drop constraint if exists menu_items_badge_check;
 alter table public.menu_items add constraint menu_items_badge_check
@@ -59,6 +89,10 @@ alter table public.menu_items add constraint menu_items_badge_check
 
 create index if not exists menu_items_category_position_idx
   on public.menu_items (category_id, position);
+
+create index if not exists menu_items_subcategory_id_idx
+  on public.menu_items (subcategory_id)
+  where subcategory_id is not null;
 
 -- Chave do link secreto de edição (admin.html#chave=...). Ninguém lê esta tabela pela API.
 create table if not exists public.menu_secret (
@@ -144,10 +178,16 @@ create trigger menu_categories_touch
   after insert or update or delete on public.menu_categories
   for each statement execute function public.touch_menu();
 
+drop trigger if exists menu_subcategories_touch on public.menu_subcategories;
+create trigger menu_subcategories_touch
+  after insert or update or delete on public.menu_subcategories
+  for each statement execute function public.touch_menu();
+
 -- Segurança (RLS): o público só lê o que está visível; só admins editam
 alter table public.menu_settings enable row level security;
 alter table public.menu_admins enable row level security;
 alter table public.menu_categories enable row level security;
+alter table public.menu_subcategories enable row level security;
 alter table public.menu_items enable row level security;
 
 drop policy if exists "settings_read" on public.menu_settings;
@@ -175,8 +215,8 @@ create policy "categories_admin_write" on public.menu_categories
   using ((select public.is_menu_admin()))
   with check ((select public.is_menu_admin()));
 
-drop policy if exists "items_read" on public.menu_items;
-create policy "items_read" on public.menu_items
+drop policy if exists "subcategories_read" on public.menu_subcategories;
+create policy "subcategories_read" on public.menu_subcategories
   for select to anon, authenticated
   using (
     (select public.is_menu_admin())
@@ -189,15 +229,55 @@ create policy "items_read" on public.menu_items
     )
   );
 
+drop policy if exists "subcategories_admin_insert" on public.menu_subcategories;
+create policy "subcategories_admin_insert" on public.menu_subcategories
+  for insert to anon, authenticated
+  with check ((select public.is_menu_admin()));
+
+drop policy if exists "subcategories_admin_update" on public.menu_subcategories;
+create policy "subcategories_admin_update" on public.menu_subcategories
+  for update to anon, authenticated
+  using ((select public.is_menu_admin()))
+  with check ((select public.is_menu_admin()));
+
+drop policy if exists "subcategories_admin_delete" on public.menu_subcategories;
+create policy "subcategories_admin_delete" on public.menu_subcategories
+  for delete to anon, authenticated
+  using ((select public.is_menu_admin()));
+
+drop policy if exists "items_read" on public.menu_items;
+create policy "items_read" on public.menu_items
+  for select to anon, authenticated
+  using (
+    (select public.is_menu_admin())
+    or (
+      visible
+      and exists (
+        select 1 from public.menu_categories c
+        where c.id = category_id and c.visible
+      )
+      and (
+        subcategory_id is null
+        or exists (
+          select 1 from public.menu_subcategories s
+          where s.id = subcategory_id
+            and s.category_id = menu_items.category_id
+            and s.visible
+        )
+      )
+    )
+  );
+
 drop policy if exists "items_admin_write" on public.menu_items;
 create policy "items_admin_write" on public.menu_items
   for all to anon, authenticated
   using ((select public.is_menu_admin()))
   with check ((select public.is_menu_admin()));
 
-grant select on public.menu_settings, public.menu_categories, public.menu_items to anon, authenticated;
+grant select on public.menu_settings, public.menu_categories, public.menu_subcategories, public.menu_items to anon, authenticated;
 grant update on public.menu_settings to anon, authenticated;
 grant insert, update, delete on public.menu_categories, public.menu_items to anon, authenticated;
+grant insert, update, delete on public.menu_subcategories to anon, authenticated;
 grant select on public.menu_admins to authenticated;
 revoke execute on function public.is_menu_admin() from public;
 revoke execute on function public.has_menu_key() from public;

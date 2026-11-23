@@ -129,6 +129,31 @@ h2 {
   vertical-align: 2px;
 }
 
+.pill-subcategory {
+  background: rgb(157 77 255 / 0.22);
+  color: #d9b8ff;
+}
+
+.subcategory-editor {
+  gap: 12px;
+}
+
+.subcategory-editor h2 {
+  margin: 0 0 3px;
+}
+
+.subcategory-cards {
+  gap: 8px;
+}
+
+.subcategory-card {
+  padding: 10px;
+}
+
+.subcategory-card .card-actions {
+  margin-top: 8px;
+}
+
 /* Cartões de item */
 .cards {
   display: flex;
